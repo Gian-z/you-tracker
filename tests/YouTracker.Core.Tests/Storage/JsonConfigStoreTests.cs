@@ -140,7 +140,10 @@ public sealed class JsonConfigStoreTests : IDisposable
                 Assert.Equal("claude-opus-4-8", config.Anthropic.Model);
                 Assert.Equal(8.0, config.Workday.TargetHours);
                 Assert.Equal("Europe/Zurich", config.Workday.Timezone);
-                Assert.Equal(["In Bearbeitung", "In Arbeit"], config.Workday.InProgressStates);
+                Assert.Equal(
+                    ["In Bearbeitung", "In Arbeit", "In progress"],
+                    config.Workday.InProgressStates
+                );
             }
         );
     }
