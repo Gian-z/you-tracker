@@ -14,7 +14,15 @@ public sealed class JsonConfigStore : IConfigStore
     private const string DefaultModel = "claude-opus-4-8";
     private const double DefaultTargetHours = 8.0;
     private const string DefaultTimezone = "Europe/Zurich";
-    private static readonly string[] DefaultInProgressStates = ["In Bearbeitung", "In Arbeit"];
+
+    // The cmiag instance mixes localized state names: REST returns e.g. "In progress"
+    // for some projects and German names for others.
+    private static readonly string[] DefaultInProgressStates =
+    [
+        "In Bearbeitung",
+        "In Arbeit",
+        "In progress",
+    ];
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -87,7 +95,7 @@ public sealed class JsonConfigStore : IConfigStore
             {
               "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:..." },
               "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
-              "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit"] }
+              "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] }
             }
             """;
 
