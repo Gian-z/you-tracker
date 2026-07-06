@@ -802,3 +802,9 @@ label > select {
   color: inherit;
   resize: vertical;
 }
+
+.dash-stack {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}

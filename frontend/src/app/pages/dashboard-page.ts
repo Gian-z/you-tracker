@@ -114,7 +114,8 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
           }
         </section>
 
-        <!-- Today's bookings + presets -->
+        <!-- Right column: today's bookings with the assistant stacked beneath -->
+        <div class="dash-stack">
         <section class="card">
           <h2>Today's bookings</h2>
           @if (todayItems().length > 0) {
@@ -195,6 +196,7 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
             }
           }
         </section>
+        </div>
       </div>
     </div>
 
