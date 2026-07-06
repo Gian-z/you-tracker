@@ -669,3 +669,13 @@ label > select {
   gap: 0.5rem;
   flex-direction: row;
 }
+
+/* --- triage sprint suggestions --- */
+.sprint-suggestions-title {
+  margin: 1rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+.triage-list.sprint-suggestions {
+  border-left: 3px solid color-mix(in srgb, var(--accent, #2e7d32) 50%, transparent);
+  padding-left: 1.5rem;
+}

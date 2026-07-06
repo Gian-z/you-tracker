@@ -18,6 +18,15 @@ public interface IIssueReader
         DateOnly to,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// Sprint tasks NOT belonging to the dev (candidate pool for triage suggestions).
+    /// Empty when no pool query is configured.
+    /// </summary>
+    Task<IReadOnlyList<Issue>> GetSprintPoolIssuesAsync(
+        string? devLogin,
+        CancellationToken ct = default
+    );
 }
 
 /// <summary>Read port for work items (time bookings) and their types.</summary>

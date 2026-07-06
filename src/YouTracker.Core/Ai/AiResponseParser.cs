@@ -79,29 +79,43 @@ public static class AiResponseParser
         return new WorkLogDraftResult(drafts, unmatched);
     }
 
-    public static TriageResult ParseTriage(string json, IReadOnlyList<Issue> knownIssues)
+    public static TriageResult ParseTriage(
+        string json,
+        IReadOnlyList<Issue> knownIssues,
+        IReadOnlyList<Issue>? poolIssues = null
+    )
     {
         var response =
             JsonSerializer.Deserialize<TriageDto>(json, Options)
             ?? throw new FormatException("AI returned empty triage response.");
 
-        var byId = knownIssues.ToDictionary(i => i.Id, StringComparer.OrdinalIgnoreCase);
-        var ranked = (response.Ranked ?? [])
-            .Where(r => r.IssueId is not null && byId.ContainsKey(r.IssueId))
-            .OrderBy(r => r.Rank)
-            .Select(
-                (r, index) =>
-                    new TriagedIssue(
-                        byId[r.IssueId!].Id,
-                        byId[r.IssueId!].Summary,
-                        index + 1,
-                        Math.Clamp(r.Score, 0, 100),
-                        r.Reasons ?? []
-                    )
-            )
-            .ToList();
+        return new TriageResult(
+            Rank(response.Ranked, knownIssues),
+            response.FocusSuggestion ?? string.Empty,
+            Rank(response.SprintSuggestions, poolIssues ?? [])
+        );
+    }
 
-        return new TriageResult(ranked, response.FocusSuggestion ?? string.Empty);
+    /// <summary>Validates AI-ranked entries against the allowed issue set and re-ranks sequentially.</summary>
+    private static List<TriagedIssue> Rank(List<TriageItemDto>? items, IReadOnlyList<Issue> allowed)
+    {
+        var byId = allowed.ToDictionary(i => i.Id, StringComparer.OrdinalIgnoreCase);
+        return
+        [
+            .. (items ?? [])
+                .Where(r => r.IssueId is not null && byId.ContainsKey(r.IssueId))
+                .OrderBy(r => r.Rank)
+                .Select(
+                    (r, index) =>
+                        new TriagedIssue(
+                            byId[r.IssueId!].Id,
+                            byId[r.IssueId!].Summary,
+                            index + 1,
+                            Math.Clamp(r.Score, 0, 100),
+                            r.Reasons ?? []
+                        )
+                ),
+        ];
     }
 
     private static string? NullIfEmpty(string? value) =>
@@ -134,6 +148,7 @@ public static class AiResponseParser
     {
         public List<TriageItemDto>? Ranked { get; set; }
         public string? FocusSuggestion { get; set; }
+        public List<TriageItemDto>? SprintSuggestions { get; set; }
     }
 
     private sealed class TriageItemDto

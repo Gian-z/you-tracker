@@ -41,7 +41,15 @@ public sealed record TriagedIssue(
     IReadOnlyList<string> Reasons
 );
 
-public sealed record TriageResult(IReadOnlyList<TriagedIssue> Ranked, string FocusSuggestion);
+/// <summary>
+/// <paramref name="SprintSuggestions"/>: tasks from the configured sprint pool (not currently
+/// the dev's) that match their recent focus — proposals only, empty without a pool query.
+/// </summary>
+public sealed record TriageResult(
+    IReadOnlyList<TriagedIssue> Ranked,
+    string FocusSuggestion,
+    IReadOnlyList<TriagedIssue> SprintSuggestions
+);
 
 public sealed record TimerStopResult(
     string IssueId,

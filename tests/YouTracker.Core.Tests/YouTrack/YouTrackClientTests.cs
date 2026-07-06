@@ -328,6 +328,65 @@ public sealed class YouTrackClientTests
         );
     }
 
+    private static (YouTrackClient Client, StubHttpHandler Handler) CreateClientWithQueries(
+        string? issueQuery,
+        string? poolQuery
+    )
+    {
+        var handler = new StubHttpHandler();
+        var config = new AppConfig(
+            new YouTrackConfig(
+                "https://yt.example.com/",
+                "https://yt.example.com",
+                "TOKEN123",
+                issueQuery,
+                poolQuery
+            ),
+            new AnthropicConfig("key", "claude"),
+            new WorkdayConfig(8.4, "Europe/Zurich", new[] { "In Progress" })
+        );
+        return (new YouTrackClient(new HttpClient(handler), config), handler);
+    }
+
+    [Fact]
+    public async Task GetOpenIssues_UsesConfiguredQueryTemplateWithDevPlaceholder()
+    {
+        var (client, handler) = CreateClientWithQueries(
+            "Board X: {Aktueller Sprint} Entwickler: $dev Sortieren nach: Status",
+            null
+        );
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.GetOpenIssuesAsync(null);
+        await client.GetOpenIssuesAsync("VVO");
+
+        Assert.Contains(
+            "query=Board X: {Aktueller Sprint} Entwickler: me Sortieren nach: Status",
+            Uri.UnescapeDataString(handler.Requests[0].Uri.AbsoluteUri)
+        );
+        Assert.Contains(
+            "Entwickler: VVO",
+            Uri.UnescapeDataString(handler.Requests[1].Uri.AbsoluteUri)
+        );
+    }
+
+    [Fact]
+    public async Task GetSprintPoolIssues_EmptyWithoutConfiguredQuery_QueriesWhenConfigured()
+    {
+        var (noPool, noPoolHandler) = CreateClientWithQueries(null, null);
+        Assert.Empty(await noPool.GetSprintPoolIssuesAsync(null));
+        Assert.Empty(noPoolHandler.Requests); // no HTTP call at all
+
+        var (client, handler) = CreateClientWithQueries(null, "Board X: hat: -Entwickler");
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+        await client.GetSprintPoolIssuesAsync(null);
+        Assert.Contains(
+            "query=Board X: hat: -Entwickler",
+            Uri.UnescapeDataString(handler.Requests[0].Uri.AbsoluteUri)
+        );
+    }
+
     [Fact]
     public async Task GetOpenIssues_SubstitutesDevLoginIntoInvolvementQuery()
     {

@@ -1,6 +1,18 @@
 namespace YouTracker.Core.Config;
 
-public sealed record YouTrackConfig(string BaseUrl, string WebBaseUrl, string Token);
+/// <summary>
+/// <paramref name="IssueQuery"/> / <paramref name="SprintPoolQuery"/> are optional YouTrack query
+/// templates with a <c>$dev</c> placeholder (replaced by "me" or the selected login).
+/// IssueQuery drives the ticket list and AI context; SprintPoolQuery defines the candidate pool
+/// (other devs' sprint tasks) that triage may suggest from. Null → built-in involvement query / no pool.
+/// </summary>
+public sealed record YouTrackConfig(
+    string BaseUrl,
+    string WebBaseUrl,
+    string Token,
+    string? IssueQuery = null,
+    string? SprintPoolQuery = null
+);
 
 public sealed record AnthropicConfig(string ApiKey, string Model, string CliCommand = "claude")
 {

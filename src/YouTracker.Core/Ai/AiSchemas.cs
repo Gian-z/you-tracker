@@ -60,9 +60,24 @@ public static class AiSchemas
                 "additionalProperties": false
               }
             },
-            "focusSuggestion": { "type": "string" }
+            "focusSuggestion": { "type": "string" },
+            "sprintSuggestions": {
+              "type": "array",
+              "description": "Tasks from the sprint pool matching the dev's focus; empty when no pool was provided",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "issueId": { "type": "string" },
+                  "rank": { "type": "integer", "minimum": 1 },
+                  "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+                  "reasons": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["issueId", "rank", "score", "reasons"],
+                "additionalProperties": false
+              }
+            }
           },
-          "required": ["ranked", "focusSuggestion"],
+          "required": ["ranked", "focusSuggestion", "sprintSuggestions"],
           "additionalProperties": false
         }
         """;

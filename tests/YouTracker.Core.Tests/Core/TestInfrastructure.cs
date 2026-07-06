@@ -73,6 +73,13 @@ public sealed class FakeIssueReader(params Issue[] issues) : IIssueReader
         DateOnly to,
         CancellationToken ct = default
     ) => Task.FromResult<IReadOnlyList<Issue>>(Issues);
+
+    public List<Issue> PoolIssues { get; } = [];
+
+    public Task<IReadOnlyList<Issue>> GetSprintPoolIssuesAsync(
+        string? devLogin,
+        CancellationToken ct = default
+    ) => Task.FromResult<IReadOnlyList<Issue>>(PoolIssues);
 }
 
 public sealed class FakeWorkItemReader : IWorkItemReader

@@ -16,10 +16,10 @@ public static class PromptBuilder
         + "Only reference issue IDs that appear in the provided issue list — never invent IDs. "
         + "Respond in the language the user's own text/data is written in (default: German).";
 
-    public static string IssueList(IEnumerable<Issue> issues)
+    public static string IssueList(IEnumerable<Issue> issues, string heading = "## Issues")
     {
         var sb = new StringBuilder(
-            "## Issues (id | project | type | state | priority | estimate | spent | updated | summary)\n"
+            $"{heading} (id | project | type | state | priority | estimate | spent | updated | summary)\n"
         );
         foreach (var i in issues.OrderBy(x => x.Id, StringComparer.Ordinal))
         {

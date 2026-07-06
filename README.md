@@ -43,7 +43,9 @@ AI actions (F3) only ever **propose** work items. Nothing is written to YouTrack
 
 ## Scope & involvement
 
-Ticket lists and AI suggestions cover issues where the dev is **involved**: assignee OR has booked time (`for: X or work author: X`, unresolved, newest 100). The web GUI's top-bar picker switches the viewed dev (dropdown from YouTrack's user directory, falling back to a text input without list permission). Viewing another dev is strictly read-only — timer, log and commit actions are disabled because bookings are always created as the token owner.
+The ticket list is driven by `youTrack.issueQuery` in the config — any YouTrack query with a `$dev` placeholder (e.g. a sprint-board query filtering on a custom `Entwickler` field). Without one, the built-in default covers issues where the dev is **involved**: assignee OR has booked time (`for: X or work author: X`, unresolved, newest 100). `youTrack.sprintPoolQuery` (optional, same `$dev` placeholder) defines a candidate pool — e.g. unclaimed sprint tasks — from which **AI triage** proposes up to five pickup tasks matching the dev's recent booking focus.
+
+The web GUI's top-bar picker switches the viewed dev (dropdown from YouTrack's user directory, falling back to a text input without list permission). Viewing another dev is strictly read-only — timer, log and commit actions are disabled because bookings are always created as the token owner.
 
 ## Booking presets
 

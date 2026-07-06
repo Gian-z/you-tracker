@@ -49,19 +49,37 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
         CancellationToken ct = default
     )
     {
-        // "Involved" = assignee OR has booked time on the issue. No parentheses: the live
-        // instance rejects `(...) #Unresolved`; implicit AND binds tighter than `or`, so
-        // each branch carries its own #Unresolved.
+        // Configured template wins (personal board/sprint queries with a $dev placeholder);
+        // otherwise "involved" = assignee OR has booked time. No parentheses in the default:
+        // the live instance rejects `(...) #Unresolved`; implicit AND binds tighter than `or`.
         var dev = DevQueryValue(devLogin);
-        var query = Uri.EscapeDataString(
-            $"for: {dev} #Unresolved or work author: {dev} #Unresolved sort by: updated desc"
-        );
+        var raw = string.IsNullOrWhiteSpace(_config.YouTrack.IssueQuery)
+            ? $"for: {dev} #Unresolved or work author: {dev} #Unresolved sort by: updated desc"
+            : SubstituteDev(_config.YouTrack.IssueQuery, dev);
         var issues = await GetAsync<List<IssueDto>>(
-            $"issues?query={query}&$top=100&fields={IssueFields}",
+            $"issues?query={Uri.EscapeDataString(raw)}&$top=100&fields={IssueFields}",
             ct
         );
         return issues.Select(MapIssue).ToList();
     }
+
+    public async Task<IReadOnlyList<Issue>> GetSprintPoolIssuesAsync(
+        string? devLogin,
+        CancellationToken ct = default
+    )
+    {
+        if (string.IsNullOrWhiteSpace(_config.YouTrack.SprintPoolQuery))
+            return Array.Empty<Issue>();
+        var raw = SubstituteDev(_config.YouTrack.SprintPoolQuery, DevQueryValue(devLogin));
+        var issues = await GetAsync<List<IssueDto>>(
+            $"issues?query={Uri.EscapeDataString(raw)}&$top=50&fields={IssueFields}",
+            ct
+        );
+        return issues.Select(MapIssue).ToList();
+    }
+
+    private static string SubstituteDev(string template, string dev) =>
+        template.Replace("$dev", dev, StringComparison.Ordinal);
 
     public async Task<IReadOnlyList<Issue>> GetRecentlyActiveIssuesAsync(
         string? devLogin,

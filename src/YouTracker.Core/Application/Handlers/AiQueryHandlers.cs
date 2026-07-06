@@ -183,7 +183,7 @@ public sealed class TriageIssuesQueryHandler(
         var today = config.Today(time);
         var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         if (open.Count == 0)
-            return new TriageResult([], "Keine offenen Tickets.");
+            return new TriageResult([], "Keine offenen Tickets.", []);
         var recent = await workItems
             .GetWorkItemsAsync(query.Dev, today.AddDays(-14), today, ct)
             .ConfigureAwait(false);
@@ -194,13 +194,34 @@ public sealed class TriageIssuesQueryHandler(
             today
         );
 
+        // Sprint pool: other devs' / unassigned sprint tasks the dev could pick up (config-driven).
+        var poolRaw = await issues.GetSprintPoolIssuesAsync(query.Dev, ct).ConfigureAwait(false);
+        var openIds = open.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var pool = poolRaw.Where(i => !openIds.Contains(i.Id)).ToList();
+
         var userPrompt =
             PromptBuilder.Workday(today, config.TargetMinutesPerWorkday, config.Workday.Timezone)
-            + PromptBuilder.IssueList(open)
+            + PromptBuilder.IssueList(open, "## The dev's issues")
             + PromptBuilder.Hygiene(hygiene)
-            + "\n## Task\nRank ALL issues by what deserves focus today. "
+            + PromptBuilder.WorkItemList(recent)
+            + (
+                pool.Count > 0
+                    ? PromptBuilder.IssueList(
+                        pool,
+                        "## Sprint pool (tasks on the sprint NOT belonging to the dev)"
+                    )
+                    : ""
+            )
+            + "\n## Task\nRank ALL of the dev's issues by what deserves focus today. "
             + "Tie-break deterministically: priority first, then staleness (older update = more urgent), then spent-vs-estimate. "
-            + "Give 1-3 short reasons per issue and one focusSuggestion sentence naming the top 1-2 issues.";
+            + "Give 1-3 short reasons per issue and one focusSuggestion sentence naming the top 1-2 issues. "
+            + (
+                pool.Count > 0
+                    ? "Additionally pick up to 5 sprint-pool tasks that best match the dev's recent focus "
+                        + "(projects, components and topics visible in their booked work items) into sprintSuggestions, "
+                        + "each with reasons referencing that focus. Only IDs from the sprint pool; empty array if none fit."
+                    : "Return an empty sprintSuggestions array."
+            );
 
         var json = await ai.CompleteJsonAsync(
                 PromptBuilder.SystemBase,
@@ -209,6 +230,6 @@ public sealed class TriageIssuesQueryHandler(
                 ct
             )
             .ConfigureAwait(false);
-        return AiResponseParser.ParseTriage(json, open);
+        return AiResponseParser.ParseTriage(json, open, pool);
     }
 }

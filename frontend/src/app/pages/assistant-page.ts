@@ -83,6 +83,32 @@ type BusyAction = 'draft' | 'summary-day' | 'summary-week' | 'triage';
               </li>
             }
           </ol>
+          @if (result.sprintSuggestions.length > 0) {
+            <h3 class="sprint-suggestions-title">Suggested from sprint (unclaimed, matching your focus)</h3>
+            <ol class="triage-list sprint-suggestions">
+              @for (entry of result.sprintSuggestions; track entry.issueId) {
+                <li>
+                  <div class="triage-head">
+                    <span class="badge green">pick up?</span>
+                    @if (issueUrl(entry.issueId); as url) {
+                      <a [href]="url" target="_blank" rel="noopener" class="issue-id">{{ entry.issueId }}</a>
+                    } @else {
+                      <span class="issue-id">{{ entry.issueId }}</span>
+                    }
+                    <span>{{ entry.summary }}</span>
+                    <span class="muted small">match {{ entry.score }}</span>
+                  </div>
+                  @if (entry.reasons.length > 0) {
+                    <ul class="reasons small muted">
+                      @for (reason of entry.reasons; track $index) {
+                        <li>{{ reason }}</li>
+                      }
+                    </ul>
+                  }
+                </li>
+              }
+            </ol>
+          }
         }
       </section>
 

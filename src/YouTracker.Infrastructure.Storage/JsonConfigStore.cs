@@ -72,7 +72,9 @@ public sealed class JsonConfigStore : IConfigStore
             new YouTrackConfig(
                 Require(dto.YouTrack?.BaseUrl, "youTrack.baseUrl"),
                 Require(dto.YouTrack?.WebBaseUrl, "youTrack.webBaseUrl"),
-                Require(token, "youTrack.token (or the YOUTRACK_TOKEN environment variable)")
+                Require(token, "youTrack.token (or the YOUTRACK_TOKEN environment variable)"),
+                FirstNonEmpty(dto.YouTrack?.IssueQuery, null),
+                FirstNonEmpty(dto.YouTrack?.SprintPoolQuery, null)
             ),
             // apiKey is optional: without one, the host uses the Claude Code CLI provider.
             new AnthropicConfig(
@@ -93,7 +95,7 @@ public sealed class JsonConfigStore : IConfigStore
     public string Template =>
         """
             {
-              "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:..." },
+              "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "" },
               "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
               "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] }
             }
@@ -123,6 +125,12 @@ public sealed class JsonConfigStore : IConfigStore
         public string? BaseUrl { get; set; }
         public string? WebBaseUrl { get; set; }
         public string? Token { get; set; }
+
+        /// <summary>Optional query template with $dev placeholder driving the ticket list.</summary>
+        public string? IssueQuery { get; set; }
+
+        /// <summary>Optional query template with $dev placeholder for triage sprint suggestions.</summary>
+        public string? SprintPoolQuery { get; set; }
     }
 
     private sealed class AnthropicDto

@@ -133,4 +133,5 @@ export interface TriageEntry {
 export interface TriageResult {
   ranked: TriageEntry[];
   focusSuggestion: string;
+  sprintSuggestions: TriageEntry[];
 }
