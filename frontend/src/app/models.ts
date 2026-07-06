@@ -1,8 +1,25 @@
+export interface UserInfo {
+  login: string;
+  fullName: string;
+}
+
 export interface Meta {
   targetMinutesPerWorkday: number;
   timezone: string;
   webBaseUrl: string;
   aiProvider: 'anthropic' | 'claude-cli';
+  currentUser: UserInfo;
+}
+
+export interface BookingPreset {
+  id: string;
+  name: string;
+  issueId: string;
+  issueSummary: string;
+  minutes: number;
+  typeId: string | null;
+  typeName: string | null;
+  comment: string | null;
 }
 
 export interface TaskListItem {

@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import {
+  BookingPreset,
   CommitResult,
   DraftResult,
   Meta,
@@ -10,6 +11,7 @@ import {
   TimerState,
   TimerStopResult,
   TriageResult,
+  UserInfo,
   WorkItem,
   WorkLogDraft,
   WorkLogRequest,
@@ -48,12 +50,31 @@ export class ApiService {
     return this.get<Meta>('/api/meta');
   }
 
-  getIssues(refresh = false): Promise<TaskListItem[]> {
-    return this.get<TaskListItem[]>('/api/issues', { refresh: String(refresh) });
+  getUsers(): Promise<UserInfo[]> {
+    return this.get<UserInfo[]>('/api/users');
   }
 
-  getOverview(from: string, to: string, refresh = false): Promise<TimeOverview> {
-    return this.get<TimeOverview>('/api/time/overview', { from, to, refresh: String(refresh) });
+  getIssues(refresh = false, dev: string | null = null): Promise<TaskListItem[]> {
+    return this.get<TaskListItem[]>('/api/issues', this.withDev({ refresh: String(refresh) }, dev));
+  }
+
+  getOverview(from: string, to: string, refresh = false, dev: string | null = null): Promise<TimeOverview> {
+    return this.get<TimeOverview>(
+      '/api/time/overview',
+      this.withDev({ from, to, refresh: String(refresh) }, dev),
+    );
+  }
+
+  getPresets(): Promise<BookingPreset[]> {
+    return this.get<BookingPreset[]>('/api/presets');
+  }
+
+  savePreset(preset: Omit<BookingPreset, 'id'> & { id?: string | null }): Promise<BookingPreset> {
+    return this.post<BookingPreset>('/api/presets', preset);
+  }
+
+  deletePreset(id: string): Promise<void> {
+    return this.unwrap(this.http.delete<void>(`/api/presets/${encodeURIComponent(id)}`));
   }
 
   getWorkTypes(): Promise<WorkType[]> {
@@ -80,20 +101,25 @@ export class ApiService {
     return this.post<CommitResult>('/api/worklog/commit', { drafts, defaultTypeId });
   }
 
-  aiDraft(freeText: string, date: string): Promise<DraftResult> {
-    return this.post<DraftResult>('/api/ai/draft', { freeText, date });
+  aiDraft(freeText: string, date: string, dev: string | null = null): Promise<DraftResult> {
+    return this.post<DraftResult>('/api/ai/draft', { freeText, date, dev });
   }
 
-  aiGapfills(from: string, to: string): Promise<DraftResult> {
-    return this.post<DraftResult>('/api/ai/gapfills', { from, to });
+  aiGapfills(from: string, to: string, dev: string | null = null): Promise<DraftResult> {
+    return this.post<DraftResult>('/api/ai/gapfills', { from, to, dev });
   }
 
-  aiSummary(from: string, to: string): Promise<{ text: string }> {
-    return this.post<{ text: string }>('/api/ai/summary', { from, to });
+  aiSummary(from: string, to: string, dev: string | null = null): Promise<{ text: string }> {
+    return this.post<{ text: string }>('/api/ai/summary', { from, to, dev });
   }
 
-  aiTriage(): Promise<TriageResult> {
-    return this.post<TriageResult>('/api/ai/triage', {});
+  aiTriage(dev: string | null = null): Promise<TriageResult> {
+    const suffix = dev ? `?dev=${encodeURIComponent(dev)}` : '';
+    return this.post<TriageResult>(`/api/ai/triage${suffix}`, {});
+  }
+
+  private withDev(params: Record<string, string>, dev: string | null): Record<string, string> {
+    return dev ? { ...params, dev } : params;
   }
 
   private get<T>(url: string, params?: Record<string, string>): Promise<T> {

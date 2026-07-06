@@ -46,6 +46,16 @@ import { RefreshService } from '../services/refresh.service';
             Comment
             <input type="text" name="comment" [(ngModel)]="comment" placeholder="What did you do?" autocomplete="off" />
           </label>
+          <label class="checkbox-row">
+            <input type="checkbox" name="saveAsPreset" [(ngModel)]="saveAsPreset" />
+            Save as preset (recurring booking, e.g. daily standup)
+          </label>
+          @if (saveAsPreset()) {
+            <label>
+              Preset name
+              <input type="text" name="presetName" [(ngModel)]="presetName" placeholder="e.g. Daily Standup" autocomplete="off" />
+            </label>
+          }
           @if (error(); as err) {
             <div class="banner error">{{ err }}</div>
           }
@@ -82,6 +92,8 @@ export class LogTimeDialog {
   readonly workTypes = signal<WorkType[]>([]);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
+  readonly saveAsPreset = signal(false);
+  readonly presetName = signal('');
 
   constructor() {
     effect(() => {
@@ -119,13 +131,27 @@ export class LogTimeDialog {
     this.saving.set(true);
     this.error.set(null);
     try {
+      const typeId = this.typeId() || null;
+      const text = this.comment().trim() || null;
       const item = await this.api.createWorklog({
         issueId: this.issueId(),
         date: this.date(),
         minutes,
-        typeId: this.typeId() || null,
-        text: this.comment().trim() || null,
+        typeId,
+        text,
       });
+      if (this.saveAsPreset()) {
+        const typeName = this.workTypes().find((t) => t.id === typeId)?.name ?? null;
+        await this.api.savePreset({
+          name: this.presetName().trim() || `${this.issueId()} (${minutes}m)`,
+          issueId: this.issueId(),
+          issueSummary: this.issueSummary(),
+          minutes,
+          typeId,
+          typeName,
+          comment: text,
+        });
+      }
       this.refresh.worklogChanged();
       this.saved.emit(item);
       this.closed.emit();

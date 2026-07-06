@@ -6,6 +6,27 @@
     <a routerLink="/assistant" routerLinkActive="active">Assistant</a>
   </nav>
   <span class="flex-spacer"></span>
+  <span class="dev-picker" [class.other-dev]="!dev.isSelf()" title="Whose tickets and bookings to show">
+    @if (dev.users().length > 0) {
+      <select [value]="dev.selectedLogin()" (change)="onDevChange($event)" aria-label="Developer">
+        @for (u of dev.users(); track u.login) {
+          <option [value]="u.login">{{ u.fullName }} ({{ u.login }})</option>
+        }
+      </select>
+    } @else {
+      <input
+        type="text"
+        [value]="dev.selectedLogin()"
+        (change)="onDevChange($event)"
+        placeholder="dev login"
+        aria-label="Developer login"
+        size="10"
+      />
+    }
+    @if (!dev.isSelf()) {
+      <span class="viewing-badge">viewing {{ dev.selectedName() }}</span>
+    }
+  </span>
   @if (timerError(); as err) {
     <span class="timer-error" (click)="timerError.set(null)" title="Click to dismiss">{{ err }}</span>
   }

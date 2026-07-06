@@ -10,8 +10,9 @@ import {
   startOfWeek,
   toIsoDate,
 } from '../format';
-import { DraftResult, TimeOverview } from '../models';
+import { BookingPreset, DraftResult, TimeOverview } from '../models';
 import { ApiService } from '../services/api.service';
+import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 
 @Component({
@@ -28,6 +29,35 @@ import { RefreshService } from '../services/refresh.service';
         <button type="button" (click)="fillGaps()" [disabled]="aiBusy() || loading()">AI: fill gaps</button>
         <button type="button" (click)="load(true)" [disabled]="loading()">Refresh</button>
       </div>
+
+      @if (dev.isSelf() && presets().length > 0) {
+        <div class="presets-strip">
+          <span class="muted small">Presets:</span>
+          @for (p of presets(); track p.id) {
+            <span class="preset-chip" [class.busy]="bookingPresetId() === p.id">
+              <button
+                type="button"
+                class="preset-book"
+                [disabled]="bookingPresetId() !== null"
+                (click)="bookPreset(p)"
+                [title]="p.issueId + ' — ' + p.issueSummary + ' · books ' + dur(p.minutes) + ' for today'"
+              >
+                {{ p.name }} · {{ dur(p.minutes) }}
+              </button>
+              <button
+                type="button"
+                class="preset-delete"
+                title="Delete preset"
+                [disabled]="bookingPresetId() !== null"
+                (click)="deletePreset(p)"
+              >
+                ×
+              </button>
+            </span>
+          }
+          <span class="muted small">(click to book for today — save new ones from the Log time dialog)</span>
+        </div>
+      }
 
       @if (aiBusy()) {
         <div class="banner info">
@@ -136,6 +166,7 @@ import { RefreshService } from '../services/refresh.service';
 export class WeekPage {
   private readonly api = inject(ApiService);
   private readonly refresh = inject(RefreshService);
+  protected readonly dev = inject(DevService);
 
   readonly weekStart = signal(startOfWeek(new Date()));
   readonly overview = signal<TimeOverview | null>(null);
@@ -144,6 +175,8 @@ export class WeekPage {
   readonly aiBusy = signal(false);
   readonly draftResult = signal<DraftResult | null>(null);
   readonly expanded = signal<ReadonlySet<string>>(new Set());
+  readonly presets = signal<BookingPreset[]>([]);
+  readonly bookingPresetId = signal<string | null>(null);
 
   readonly today = toIsoDate(new Date());
 
@@ -157,8 +190,48 @@ export class WeekPage {
     effect(() => {
       this.refresh.worklogVersion();
       this.weekStart();
-      untracked(() => void this.load(false));
+      this.dev.devParam();
+      untracked(() => {
+        void this.load(false);
+        void this.loadPresets(); // picks up presets saved via the Log time dialog
+      });
     });
+  }
+
+  async loadPresets(): Promise<void> {
+    try {
+      this.presets.set(await this.api.getPresets());
+    } catch {
+      this.presets.set([]); // strip simply stays hidden
+    }
+  }
+
+  async bookPreset(preset: BookingPreset): Promise<void> {
+    this.bookingPresetId.set(preset.id);
+    this.error.set(null);
+    try {
+      await this.api.createWorklog({
+        issueId: preset.issueId,
+        date: this.today,
+        minutes: preset.minutes,
+        typeId: preset.typeId,
+        text: preset.comment,
+      });
+      this.refresh.worklogChanged();
+    } catch (err) {
+      this.error.set((err as Error).message);
+    } finally {
+      this.bookingPresetId.set(null);
+    }
+  }
+
+  async deletePreset(preset: BookingPreset): Promise<void> {
+    try {
+      await this.api.deletePreset(preset.id);
+      await this.loadPresets();
+    } catch (err) {
+      this.error.set((err as Error).message);
+    }
   }
 
   shiftWeek(direction: number): void {
@@ -193,7 +266,7 @@ export class WeekPage {
     this.loading.set(true);
     this.error.set(null);
     try {
-      this.overview.set(await this.api.getOverview(from, to, refresh));
+      this.overview.set(await this.api.getOverview(from, to, refresh, this.dev.devParam()));
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
@@ -207,7 +280,7 @@ export class WeekPage {
     this.aiBusy.set(true);
     this.error.set(null);
     try {
-      this.draftResult.set(await this.api.aiGapfills(from, to));
+      this.draftResult.set(await this.api.aiGapfills(from, to, this.dev.devParam()));
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {

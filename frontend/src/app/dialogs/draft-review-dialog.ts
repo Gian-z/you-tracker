@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { formatShortDate } from '../format';
 import { CommitResult, UnmatchedItem, WorkLogDraft } from '../models';
 import { ApiService } from '../services/api.service';
+import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 
 interface DraftRow {
@@ -104,9 +105,19 @@ interface DraftRow {
             <div class="banner error">{{ err }}</div>
           }
 
+          @if (!dev.isSelf()) {
+            <div class="banner">
+              Bookings are always created as YOU — switch back to yourself to commit these drafts.
+            </div>
+          }
           <div class="dialog-actions">
             <button type="button" class="secondary" (click)="cancel()" [disabled]="committing()">Cancel</button>
-            <button type="button" class="primary" (click)="commit()" [disabled]="committing() || checkedCount() === 0">
+            <button
+              type="button"
+              class="primary"
+              (click)="commit()"
+              [disabled]="committing() || checkedCount() === 0 || !dev.isSelf()"
+            >
               @if (committing()) {
                 <span class="spinner"></span>
               }
@@ -121,6 +132,7 @@ interface DraftRow {
 export class DraftReviewDialog {
   private readonly api = inject(ApiService);
   private readonly refresh = inject(RefreshService);
+  protected readonly dev = inject(DevService);
 
   readonly drafts = input.required<WorkLogDraft[]>();
   readonly unmatched = input<UnmatchedItem[]>([]);

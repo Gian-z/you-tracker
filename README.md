@@ -41,6 +41,14 @@ dotnet run --project src/YouTracker.Web
 
 AI actions (F3) only ever **propose** work items. Nothing is written to YouTrack until you check the drafts and press Commit in the review dialog.
 
+## Scope & involvement
+
+Ticket lists and AI suggestions cover issues where the dev is **involved**: assignee OR has booked time (`for: X or work author: X`, unresolved, newest 100). The web GUI's top-bar picker switches the viewed dev (dropdown from YouTrack's user directory, falling back to a text input without list permission). Viewing another dev is strictly read-only — timer, log and commit actions are disabled because bookings are always created as the token owner.
+
+## Booking presets
+
+Recurring bookings (daily standup, plannings, …) can be saved as presets: tick **"Save as preset"** in the Log time dialog, then book them with one click from the strip on the Week page (books the preset's duration for today). Presets live in `%APPDATA%\you-tracker\presets.json`.
+
 ## AI provider selection (hybrid)
 
 The composition root picks the AI backend from `anthropic.apiKey` in the config:

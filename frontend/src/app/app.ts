@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { LogTimeDialog } from './dialogs/log-time-dialog';
 import { formatElapsed } from './format';
 import { TimerStopResult } from './models';
+import { DevService } from './services/dev.service';
 import { TimerService } from './services/timer.service';
 
 @Component({
@@ -13,6 +14,15 @@ import { TimerService } from './services/timer.service';
 })
 export class App {
   protected readonly timer = inject(TimerService);
+  protected readonly dev = inject(DevService);
+
+  constructor() {
+    void this.dev.init();
+  }
+
+  protected onDevChange(event: Event): void {
+    this.dev.select((event.target as HTMLSelectElement | HTMLInputElement).value);
+  }
 
   protected readonly elapsed = computed(() => formatElapsed(this.timer.elapsedSeconds()));
   protected readonly stopping = signal(false);

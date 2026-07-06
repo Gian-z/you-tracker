@@ -4,6 +4,7 @@ import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
 import { addDays, startOfWeek, toIsoDate } from '../format';
 import { DraftResult, TriageResult } from '../models';
 import { ApiService } from '../services/api.service';
+import { DevService } from '../services/dev.service';
 
 type BusyAction = 'draft' | 'summary-day' | 'summary-week' | 'triage';
 
@@ -110,6 +111,7 @@ type BusyAction = 'draft' | 'summary-day' | 'summary-week' | 'triage';
 })
 export class AssistantPage {
   private readonly api = inject(ApiService);
+  protected readonly dev = inject(DevService);
   private webUrls = new Map<string, string>();
 
   readonly freeText = signal('');
@@ -136,7 +138,9 @@ export class AssistantPage {
 
   async draft(): Promise<void> {
     await this.run('draft', async () => {
-      this.draftResult.set(await this.api.aiDraft(this.freeText().trim(), this.date()));
+      this.draftResult.set(
+        await this.api.aiDraft(this.freeText().trim(), this.date(), this.dev.devParam()),
+      );
     });
   }
 
@@ -152,14 +156,14 @@ export class AssistantPage {
       to = toIsoDate(addDays(monday, 6));
     }
     await this.run(range === 'day' ? 'summary-day' : 'summary-week', async () => {
-      const result = await this.api.aiSummary(from, to);
+      const result = await this.api.aiSummary(from, to, this.dev.devParam());
       this.summaryText.set(result.text);
     });
   }
 
   async triage(): Promise<void> {
     await this.run('triage', async () => {
-      this.triageResult.set(await this.api.aiTriage());
+      this.triageResult.set(await this.api.aiTriage(this.dev.devParam()));
     });
   }
 
