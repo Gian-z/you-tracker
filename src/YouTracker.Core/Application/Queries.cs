@@ -50,6 +50,15 @@ public sealed record GetCurrentUserQuery(bool BypassCache = false)
     public TimeSpan Ttl => TimeSpan.FromHours(1);
 }
 
+/// <summary>Unclaimed/other sprint tasks from the configured pool query (empty without one).</summary>
+public sealed record GetSprintPoolQuery(bool BypassCache = false, string? Dev = null)
+    : IQuery<IReadOnlyList<TaskListItem>>,
+        ICacheableQuery
+{
+    public string CacheKey => $"issues:pool:{Dev ?? "me"}";
+    public TimeSpan Ttl => TimeSpan.FromMinutes(2);
+}
+
 public sealed record GetTimerStateQuery : IQuery<TimerState?>;
 
 public sealed record GetPresetsQuery : IQuery<IReadOnlyList<BookingPreset>>;

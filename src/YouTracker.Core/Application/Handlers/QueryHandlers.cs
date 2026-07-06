@@ -57,6 +57,33 @@ public sealed class GetTimeOverviewQueryHandler(
     }
 }
 
+public sealed class GetSprintPoolQueryHandler(IIssueReader issues, AppConfig config)
+    : IQueryHandler<GetSprintPoolQuery, IReadOnlyList<TaskListItem>>
+{
+    public async Task<IReadOnlyList<TaskListItem>> HandleAsync(
+        GetSprintPoolQuery query,
+        CancellationToken ct = default
+    )
+    {
+        var pool = await issues.GetSprintPoolIssuesAsync(query.Dev, ct).ConfigureAwait(false);
+        return
+        [
+            .. pool.Select(i => new TaskListItem(
+                i.Id,
+                i.Summary,
+                i.ProjectKey,
+                i.Type,
+                i.State,
+                i.Priority,
+                i.EstimateMinutes is { } e ? DurationFormat.ToPresentation(e) : null,
+                i.SpentMinutes is { } s ? DurationFormat.ToPresentation(s) : null,
+                i.Updated,
+                config.WebUrlFor(i.Id)
+            )),
+        ];
+    }
+}
+
 public sealed class GetWorkItemTypesQueryHandler(IWorkItemReader workItems)
     : IQueryHandler<GetWorkItemTypesQuery, IReadOnlyList<WorkItemType>>
 {

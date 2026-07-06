@@ -1,6 +1,7 @@
 <header class="topbar">
   <span class="brand">you-tracker</span>
   <nav class="main-nav">
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a>
     <a routerLink="/tasks" routerLinkActive="active">Tasks</a>
     <a routerLink="/week" routerLinkActive="active">Week</a>
     <a routerLink="/assistant" routerLinkActive="active">Assistant</a>
@@ -10,7 +11,12 @@
     @if (dev.users().length > 0) {
       <select [value]="dev.selectedLogin()" (change)="onDevChange($event)" aria-label="Developer">
         @for (u of dev.users(); track u.login) {
-          <option [value]="u.login">{{ u.fullName }} ({{ u.login }})</option>
+          <option
+            [value]="u.login"
+            [selected]="u.login.toLowerCase() === dev.selectedLogin().toLowerCase()"
+          >
+            {{ u.fullName }} ({{ u.login }})
+          </option>
         }
       </select>
     } @else {

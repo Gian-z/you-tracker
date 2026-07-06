@@ -136,6 +136,12 @@ api.MapGet(
 );
 
 api.MapGet(
+    "/sprintpool",
+    (IDispatcher dispatcher, CancellationToken ct, bool refresh = false, string? dev = null) =>
+        dispatcher.QueryAsync(new GetSprintPoolQuery(BypassCache: refresh, Dev: Clean(dev)), ct)
+);
+
+api.MapGet(
     "/worktypes",
     (IDispatcher dispatcher, CancellationToken ct) =>
         dispatcher.QueryAsync(new GetWorkItemTypesQuery(), ct)

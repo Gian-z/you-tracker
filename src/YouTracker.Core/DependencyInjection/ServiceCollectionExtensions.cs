@@ -90,6 +90,11 @@ public static class ServiceCollectionExtensions
             DeletePresetCommandHandler
         >();
 
+        services.AddTransient<
+            IQueryHandler<GetSprintPoolQuery, IReadOnlyList<TaskListItem>>,
+            GetSprintPoolQueryHandler
+        >();
+
         // Directory + presets
         services.AddTransient<
             IQueryHandler<GetUsersQuery, IReadOnlyList<UserInfo>>,

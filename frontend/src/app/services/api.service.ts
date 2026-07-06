@@ -65,6 +65,10 @@ export class ApiService {
     );
   }
 
+  getSprintPool(refresh = false, dev: string | null = null): Promise<TaskListItem[]> {
+    return this.get<TaskListItem[]>('/api/sprintpool', this.withDev({ refresh: String(refresh) }, dev));
+  }
+
   getPresets(): Promise<BookingPreset[]> {
     return this.get<BookingPreset[]>('/api/presets');
   }
