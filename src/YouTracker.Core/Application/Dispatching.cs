@@ -29,7 +29,19 @@ public sealed class Dispatcher(IServiceProvider services) : IDispatcher
                 $"No handler registered for {message.GetType().Name}."
             );
         var handleMethod = handlerType.GetMethod("HandleAsync")!;
-        return (Task<TResult>)handleMethod.Invoke(handler, [message, ct])!;
+        try
+        {
+            return (Task<TResult>)handleMethod.Invoke(handler, [message, ct])!;
+        }
+        catch (System.Reflection.TargetInvocationException tie)
+            when (tie.InnerException is not null)
+        {
+            // Surface the handler's own exception instead of the reflection wrapper.
+            System
+                .Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException)
+                .Throw();
+            throw; // unreachable
+        }
     }
 }
 
