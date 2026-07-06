@@ -1,0 +1,344 @@
+using System.Net;
+using System.Text.Json;
+using YouTracker.Core.Abstractions;
+using YouTracker.Core.Config;
+using YouTracker.Infrastructure.YouTrack;
+
+namespace YouTracker.Core.Tests.YouTrack;
+
+public sealed class YouTrackClientTests
+{
+    private static (YouTrackClient Client, StubHttpHandler Handler) CreateClient()
+    {
+        var handler = new StubHttpHandler();
+        var config = new AppConfig(
+            new YouTrackConfig("https://yt.example.com/", "https://yt.example.com", "TOKEN123"),
+            new AnthropicConfig("key", "claude"),
+            new WorkdayConfig(8.4, "Europe/Zurich", new[] { "In Progress" })
+        );
+        return (new YouTrackClient(new HttpClient(handler), config), handler);
+    }
+
+    private const string OpenIssuesJson = """
+        [
+          {
+            "idReadable": "ALPHA-1238",
+            "summary": "Klapp-Endpunkte: Version erst ab 26.0.3 verfügbar machen",
+            "updated": 1751667321000,
+            "project": { "shortName": "ALPHA" },
+            "customFields": [
+              { "name": "Type", "value": { "name": "Feature" } },
+              { "name": "Priority", "value": { "name": "Normal" } },
+              { "name": "State", "value": [ { "name": "In Bearbeitung" }, { "name": "Zweiter" } ] },
+              { "name": "Estimation", "value": { "minutes": 240, "presentation": "4h" } },
+              { "name": "Spent time", "value": null }
+            ]
+          },
+          {
+            "idReadable": "BETA-7",
+            "summary": "No project field returned",
+            "updated": 0,
+            "customFields": []
+          }
+        ]
+        """;
+
+    [Fact]
+    public async Task GetMyOpenIssues_SendsEscapedQueryAndAuthHeaders()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, OpenIssuesJson);
+
+        await client.GetMyOpenIssuesAsync();
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.StartsWith("https://yt.example.com/api/issues?", request.Uri.AbsoluteUri);
+        Assert.Contains(
+            "query=for%3A%20me%20%23Unresolved%20sort%20by%3A%20updated%20desc",
+            request.Uri.AbsoluteUri
+        );
+        Assert.Contains("$top=100", request.Uri.AbsoluteUri);
+        Assert.Contains(
+            "fields=idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))",
+            Uri.UnescapeDataString(request.Uri.AbsoluteUri)
+        );
+        Assert.Equal("Bearer TOKEN123", request.Authorization);
+        Assert.Contains("application/json", request.Accept);
+    }
+
+    [Fact]
+    public async Task GetMyOpenIssues_MapsPolymorphicCustomFieldsAndEpoch()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, OpenIssuesJson);
+
+        var issues = await client.GetMyOpenIssuesAsync();
+
+        Assert.Equal(2, issues.Count);
+
+        var first = issues[0];
+        Assert.Equal("ALPHA-1238", first.Id);
+        Assert.Equal("Klapp-Endpunkte: Version erst ab 26.0.3 verfügbar machen", first.Summary);
+        Assert.Equal("ALPHA", first.ProjectKey);
+        Assert.Equal("Feature", first.Type); // object value
+        Assert.Equal("Normal", first.Priority); // object value
+        Assert.Equal("In Bearbeitung", first.State); // array value -> first element
+        Assert.Equal(240, first.EstimateMinutes); // period value with minutes
+        Assert.Null(first.SpentMinutes); // null value
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1751667321000), first.Updated);
+
+        var second = issues[1];
+        Assert.Equal("BETA", second.ProjectKey); // fallback: prefix of idReadable
+        Assert.Null(second.Type);
+        Assert.Null(second.EstimateMinutes);
+    }
+
+    [Fact]
+    public async Task GetMyRecentlyActiveIssues_SendsDateRangeQuery()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.GetMyRecentlyActiveIssuesAsync(
+            new DateOnly(2026, 7, 1),
+            new DateOnly(2026, 7, 5)
+        );
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains(
+            "query=updated%20by%3A%20me%20updated%3A%202026-07-01%20..%202026-07-05",
+            request.Uri.AbsoluteUri
+        );
+        Assert.Contains("$top=50", request.Uri.AbsoluteUri);
+    }
+
+    private const string CreatedWorkItemJson = """
+        {
+          "id": "142-999",
+          "date": 1783332000000,
+          "duration": { "minutes": 90, "presentation": "1h 30m" },
+          "type": { "id": "77-1", "name": "Development" },
+          "text": "did stuff",
+          "issue": { "idReadable": "ALPHA-1", "summary": "Some issue" },
+          "author": { "login": "gzw" }
+        }
+        """;
+
+    [Fact]
+    public async Task CreateWorkItem_SendsNoonLocalEpochDurationAndText_OmitsTypeWhenNull()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, CreatedWorkItemJson);
+
+        var created = await client.CreateWorkItemAsync(
+            new NewWorkItem("ALPHA-1", new DateOnly(2026, 7, 6), 90, TypeId: null, "did stuff")
+        );
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.StartsWith(
+            "https://yt.example.com/api/issues/ALPHA-1/timeTracking/workItems?fields=",
+            request.Uri.AbsoluteUri
+        );
+
+        using var body = JsonDocument.Parse(request.Body!);
+        var root = body.RootElement;
+        // 2026-07-06 12:00 Europe/Zurich (CEST, +02:00) == 2026-07-06T10:00:00Z
+        var expectedEpoch = new DateTimeOffset(
+            2026,
+            7,
+            6,
+            12,
+            0,
+            0,
+            TimeSpan.FromHours(2)
+        ).ToUnixTimeMilliseconds();
+        Assert.Equal(expectedEpoch, root.GetProperty("date").GetInt64());
+        Assert.Equal(90, root.GetProperty("duration").GetProperty("minutes").GetInt32());
+        Assert.Equal("did stuff", root.GetProperty("text").GetString());
+        Assert.False(root.TryGetProperty("type", out _));
+
+        // Mapped response
+        Assert.Equal("142-999", created.Id);
+        Assert.Equal("ALPHA-1", created.IssueId);
+        Assert.Equal("Some issue", created.IssueSummary);
+        Assert.Equal(new DateOnly(2026, 7, 6), created.Date);
+        Assert.Equal(90, created.Minutes);
+        Assert.Equal("77-1", created.TypeId);
+        Assert.Equal("Development", created.TypeName);
+        Assert.Equal("gzw", created.AuthorLogin);
+    }
+
+    [Fact]
+    public async Task CreateWorkItem_IncludesTypeIdWhenSet()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, CreatedWorkItemJson);
+
+        await client.CreateWorkItemAsync(
+            new NewWorkItem("ALPHA-1", new DateOnly(2026, 7, 6), 90, "77-1", "did stuff")
+        );
+
+        using var body = JsonDocument.Parse(handler.Requests[0].Body!);
+        Assert.Equal("77-1", body.RootElement.GetProperty("type").GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task GetMyWorkItems_FallsBackToIssueScopedPathOn404_AndFiltersByAuthorAndDate()
+    {
+        var (client, handler) = CreateClient();
+        handler
+            .Enqueue(
+                HttpStatusCode.OK,
+                """{ "id": "1-1", "login": "gzw", "fullName": "Gianluca Z" }"""
+            )
+            .Enqueue(HttpStatusCode.NotFound, """{ "error": "Not Found" }""")
+            .Enqueue(HttpStatusCode.OK, """[ { "idReadable": "ALPHA-1", "summary": "S1" } ]""")
+            .Enqueue(
+                HttpStatusCode.OK,
+                """
+                [
+                  {
+                    "id": "142-1",
+                    "date": 1783332000000,
+                    "duration": { "minutes": 60, "presentation": "1h" },
+                    "text": "mine, in range",
+                    "issue": { "idReadable": "ALPHA-1", "summary": "S1" },
+                    "author": { "login": "gzw" }
+                  },
+                  {
+                    "id": "142-2",
+                    "date": 1783332000000,
+                    "duration": { "minutes": 30, "presentation": "30m" },
+                    "text": "someone else",
+                    "issue": { "idReadable": "ALPHA-1", "summary": "S1" },
+                    "author": { "login": "other" }
+                  },
+                  {
+                    "id": "142-3",
+                    "date": 1780308000000,
+                    "duration": { "minutes": 15, "presentation": "15m" },
+                    "text": "mine, out of range (2026-06-01)",
+                    "issue": { "idReadable": "ALPHA-1", "summary": "S1" },
+                    "author": { "login": "gzw" }
+                  }
+                ]
+                """
+            );
+
+        var from = new DateOnly(2026, 7, 1);
+        var to = new DateOnly(2026, 7, 7);
+        var items = await client.GetMyWorkItemsAsync(from, to);
+
+        var item = Assert.Single(items);
+        Assert.Equal("142-1", item.Id);
+        Assert.Equal("gzw", item.AuthorLogin);
+        Assert.Equal(new DateOnly(2026, 7, 6), item.Date);
+        Assert.Equal("ALPHA-1", item.IssueId);
+        Assert.Equal(60, item.Minutes);
+
+        Assert.Equal(4, handler.Requests.Count);
+        Assert.Contains("users/me?fields=id,login,fullName", handler.Requests[0].Uri.AbsoluteUri);
+        Assert.Contains("/api/workItems?author=gzw", handler.Requests[1].Uri.AbsoluteUri);
+        Assert.Contains("startDate=2026-07-01", handler.Requests[1].Uri.AbsoluteUri);
+        Assert.Contains("endDate=2026-07-07", handler.Requests[1].Uri.AbsoluteUri);
+        Assert.Contains(
+            "query=work%20author%3A%20me%20work%20date%3A%202026-07-01%20..%202026-07-07",
+            handler.Requests[2].Uri.AbsoluteUri
+        );
+        Assert.Contains(
+            "/api/issues/ALPHA-1/timeTracking/workItems?",
+            handler.Requests[3].Uri.AbsoluteUri
+        );
+
+        // Second call must not re-probe the top-level workItems endpoint.
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+        await client.GetMyWorkItemsAsync(from, to);
+        Assert.Equal(5, handler.Requests.Count);
+        Assert.Contains("/api/issues?query=work%20author", handler.Requests[4].Uri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task GetMyWorkItems_UsesTopLevelEndpointWhenAvailable()
+    {
+        var (client, handler) = CreateClient();
+        handler
+            .Enqueue(HttpStatusCode.OK, """{ "id": "1-1", "login": "gzw", "fullName": "G" }""")
+            .Enqueue(
+                HttpStatusCode.OK,
+                """
+                [
+                  {
+                    "id": "142-1",
+                    "date": 1783332000000,
+                    "duration": { "minutes": 60, "presentation": "1h" },
+                    "type": { "id": "77-1", "name": "Development" },
+                    "text": "t",
+                    "issue": { "idReadable": "ALPHA-1", "summary": "S1" },
+                    "author": { "login": "gzw" }
+                  }
+                ]
+                """
+            );
+
+        var items = await client.GetMyWorkItemsAsync(
+            new DateOnly(2026, 7, 1),
+            new DateOnly(2026, 7, 7)
+        );
+
+        var item = Assert.Single(items);
+        Assert.Equal("Development", item.TypeName);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("$top=500", handler.Requests[1].Uri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task NonSuccessStatus_ThrowsYouTrackApiExceptionWithDetails()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.InternalServerError, "boom");
+
+        var ex = await Assert.ThrowsAsync<YouTrackApiException>(() =>
+            client.GetMyOpenIssuesAsync()
+        );
+
+        Assert.Equal(500, ex.StatusCode);
+        Assert.Equal("boom", ex.ResponseBody);
+        Assert.Contains("issues?query=", ex.RequestUrl);
+        Assert.Contains("500", ex.Message);
+        Assert.Contains("boom", ex.Message);
+        Assert.Contains(ex.RequestUrl, ex.Message);
+    }
+
+    [Fact]
+    public async Task GetWorkItemTypes_Returns403AsEmptyList()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.Forbidden, """{ "error": "Forbidden" }""");
+
+        var types = await client.GetWorkItemTypesAsync();
+
+        Assert.Empty(types);
+        Assert.Contains(
+            "admin/timeTrackingSettings/workItemTypes?fields=id,name",
+            handler.Requests[0].Uri.AbsoluteUri
+        );
+    }
+
+    [Fact]
+    public async Task GetWorkItemTypes_MapsIdAndName()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(
+            HttpStatusCode.OK,
+            """[ { "id": "77-1", "name": "Development" }, { "id": "77-2", "name": "Testing" } ]"""
+        );
+
+        var types = await client.GetWorkItemTypesAsync();
+
+        Assert.Equal(2, types.Count);
+        Assert.Equal("77-1", types[0].Id);
+        Assert.Equal("Development", types[0].Name);
+    }
+}
