@@ -13,9 +13,20 @@ Personal YouTrack time-tracking companion: a keyboard-first terminal UI with AI 
 dotnet run --project src/YouTracker.Tui -- --check     # read-only: open issues + this week's bookings
 dotnet run --project src/YouTracker.Tui -- --check-ai  # one trivial completion through the active AI provider
 
-# 3. Run the TUI
+# 3a. Run the TUI
 dotnet run --project src/YouTracker.Tui
+
+# 3b. Or run the web GUI (Angular SPA served at http://localhost:5210)
+dotnet run --project src/YouTracker.Web
 ```
+
+## Web GUI
+
+`YouTracker.Web` hosts a REST API (`/api/*`) plus the Angular SPA (Tasks · Week · Assistant, live timer widget, AI draft-review commit gate — same features and same confirm-before-write rule as the TUI).
+
+- **Use it:** `dotnet run --project src/YouTracker.Web` → open http://localhost:5210
+- **Frontend development:** `cd frontend; npm start` → http://localhost:4200 with `/api` proxied to :5210 (run the web host alongside)
+- **Rebuild the SPA into wwwroot:** `cd frontend; npx ng build`
 
 ## Keys
 
@@ -50,7 +61,9 @@ src/
 ├── YouTracker.Infrastructure.Anthropic/# Claude API → IAiProvider (official Anthropic SDK)
 ├── YouTracker.Infrastructure.ClaudeCli/# Claude Code CLI (headless) → IAiProvider, no API key
 ├── YouTracker.Infrastructure.Storage/  # %APPDATA% JSON files → ITimerStore/IConfigStore
-└── YouTracker.Tui/                     # Terminal.Gui v1 host; Program.cs is the only composition root
+├── YouTracker.Tui/                     # Terminal.Gui v1 host (composition root #1)
+└── YouTracker.Web/                     # ASP.NET Core API + Angular SPA host (composition root #2)
+frontend/                               # Angular 21 app (signals, zoneless); builds into YouTracker.Web/wwwroot
 tests/YouTracker.Core.Tests/
 ```
 

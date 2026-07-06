@@ -1,12 +1,39 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { LogTimeDialog } from './dialogs/log-time-dialog';
+import { formatElapsed } from './format';
+import { TimerStopResult } from './models';
+import { TimerService } from './services/timer.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogTimeDialog],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
 export class App {
-  protected readonly title = signal('you-tracker-web');
+  protected readonly timer = inject(TimerService);
+
+  protected readonly elapsed = computed(() => formatElapsed(this.timer.elapsedSeconds()));
+  protected readonly stopping = signal(false);
+  protected readonly stopResult = signal<TimerStopResult | null>(null);
+  protected readonly timerError = signal<string | null>(null);
+
+  protected async stopTimer(): Promise<void> {
+    if (this.stopping()) {
+      return;
+    }
+    this.stopping.set(true);
+    this.timerError.set(null);
+    try {
+      const result = await this.timer.stop();
+      if (result) {
+        this.stopResult.set(result);
+      }
+    } catch (err) {
+      this.timerError.set((err as Error).message);
+    } finally {
+      this.stopping.set(false);
+    }
+  }
 }

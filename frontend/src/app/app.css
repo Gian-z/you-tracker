@@ -1,0 +1,96 @@
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  height: 3rem;
+  padding: 0 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.main-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.main-nav a {
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.main-nav a:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.main-nav a.active {
+  color: var(--accent);
+  background: var(--accent-weak);
+}
+
+.timer-widget {
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.timer-widget.running {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-bg);
+  font-weight: 600;
+}
+
+.timer-widget.idle {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.timer-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.timer-clock {
+  font-weight: 650;
+}
+
+.timer-error {
+  color: var(--red);
+  font-size: 0.8rem;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.content {
+  padding: 4rem 1rem 2rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
