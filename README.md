@@ -47,6 +47,10 @@ The ticket list is driven by `youTrack.issueQuery` in the config — any YouTrac
 
 The web GUI's top-bar picker switches the viewed dev (dropdown from YouTrack's user directory, falling back to a text input without list permission). Viewing another dev is strictly read-only — timer, log and commit actions are disabled because bookings are always created as the token owner.
 
+## Git activity as booking evidence
+
+With `git.scanRoots` configured (e.g. `["C:/cmi-github"]`), every local clone underneath is scanned via `git log --all` for your commits (author defaults to `git config user.email`, override with `git.author`). Commit timestamps and messages — including CMI-style ticket IDs like `[XBOX-548]` — feed the AI's work-log drafting, gap fills, and summaries as factual evidence, so gap proposals cite what you actually committed instead of guessing from adjacency. Commit context applies only when viewing yourself; it never leaves your machine except inside the AI prompt.
+
 ## Booking presets
 
 Recurring bookings (daily standup, plannings, …) can be saved as presets: tick **"Save as preset"** in the Log time dialog, then book them with one click from the strip on the Week page (books the preset's duration for today). Presets live in `%APPDATA%\you-tracker\presets.json`.

@@ -88,7 +88,8 @@ public sealed class JsonConfigStore : IConfigStore
                 dto.Workday?.InProgressStates is { Count: > 0 } states
                     ? states
                     : DefaultInProgressStates
-            )
+            ),
+            new GitConfig(dto.Git?.ScanRoots ?? [], FirstNonEmpty(dto.Git?.Author, null))
         );
     }
 
@@ -97,7 +98,8 @@ public sealed class JsonConfigStore : IConfigStore
             {
               "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "" },
               "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
-              "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] }
+              "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] },
+              "git": { "scanRoots": ["C:/cmi-github"], "author": "" }
             }
             """;
 
@@ -118,6 +120,7 @@ public sealed class JsonConfigStore : IConfigStore
         public YouTrackDto? YouTrack { get; set; }
         public AnthropicDto? Anthropic { get; set; }
         public WorkdayDto? Workday { get; set; }
+        public GitDto? Git { get; set; }
     }
 
     private sealed class YouTrackDto
@@ -145,5 +148,11 @@ public sealed class JsonConfigStore : IConfigStore
         public double? TargetHours { get; set; }
         public string? Timezone { get; set; }
         public List<string>? InProgressStates { get; set; }
+    }
+
+    private sealed class GitDto
+    {
+        public List<string>? ScanRoots { get; set; }
+        public string? Author { get; set; }
     }
 }

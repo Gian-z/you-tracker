@@ -32,10 +32,17 @@ public sealed record WorkdayConfig(
     IReadOnlyList<string> InProgressStates
 );
 
+/// <summary>
+/// Local git activity: every repo found under <paramref name="ScanRoots"/> is scanned for the
+/// user's commits (author defaults to `git config user.email`). Empty roots disable the feature.
+/// </summary>
+public sealed record GitConfig(IReadOnlyList<string> ScanRoots, string? Author = null);
+
 public sealed record AppConfig(
     YouTrackConfig YouTrack,
     AnthropicConfig Anthropic,
-    WorkdayConfig Workday
+    WorkdayConfig Workday,
+    GitConfig? Git = null
 )
 {
     public int TargetMinutesPerWorkday => (int)Math.Round(Workday.TargetHours * 60);

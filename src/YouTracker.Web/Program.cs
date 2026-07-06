@@ -4,6 +4,7 @@ using YouTracker.Core.Config;
 using YouTracker.Core.DependencyInjection;
 using YouTracker.Infrastructure.Anthropic.DependencyInjection;
 using YouTracker.Infrastructure.ClaudeCli.DependencyInjection;
+using YouTracker.Infrastructure.Git.DependencyInjection;
 using YouTracker.Infrastructure.Storage.DependencyInjection;
 using YouTracker.Infrastructure.YouTrack;
 using YouTracker.Infrastructure.YouTrack.DependencyInjection;
@@ -44,6 +45,7 @@ builder.WebHost.UseUrls("http://localhost:5210");
 builder.Services.AddYouTrackerCore();
 builder.Services.AddYouTrackerYouTrack();
 builder.Services.AddYouTrackerStorage();
+builder.Services.AddYouTrackerGit();
 
 // AI provider: real API key → Anthropic SDK; otherwise the local Claude Code CLI.
 if (config.Anthropic.HasApiKey)

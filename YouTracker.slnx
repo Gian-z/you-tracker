@@ -3,6 +3,7 @@
     <Project Path="src/YouTracker.Core/YouTracker.Core.csproj" />
     <Project Path="src/YouTracker.Infrastructure.Anthropic/YouTracker.Infrastructure.Anthropic.csproj" />
     <Project Path="src/YouTracker.Infrastructure.ClaudeCli/YouTracker.Infrastructure.ClaudeCli.csproj" />
+    <Project Path="src/YouTracker.Infrastructure.Git/YouTracker.Infrastructure.Git.csproj" />
     <Project Path="src/YouTracker.Infrastructure.Storage/YouTracker.Infrastructure.Storage.csproj" />
     <Project Path="src/YouTracker.Infrastructure.YouTrack/YouTracker.Infrastructure.YouTrack.csproj" />
     <Project Path="src/YouTracker.Tui/YouTracker.Tui.csproj" />

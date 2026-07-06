@@ -102,6 +102,25 @@ public sealed class FakeWorkItemReader : IWorkItemReader
     ) => Task.FromResult<IReadOnlyList<WorkItemType>>(Types);
 }
 
+public sealed class FakeCommitActivityReader : ICommitActivityReader
+{
+    public List<CommitActivity> Commits { get; } = [];
+
+    public Task<IReadOnlyList<CommitActivity>> GetCommitsAsync(
+        DateOnly from,
+        DateOnly to,
+        CancellationToken ct = default
+    ) =>
+        Task.FromResult<IReadOnlyList<CommitActivity>>(
+            [
+                .. Commits.Where(c =>
+                    DateOnly.FromDateTime(c.Timestamp.Date) >= from
+                    && DateOnly.FromDateTime(c.Timestamp.Date) <= to
+                ),
+            ]
+        );
+}
+
 public sealed class FakeUserDirectory : IUserDirectory
 {
     public UserInfo CurrentUser { get; set; } = new("GZW", "Zwahlen, Gian-Luca");

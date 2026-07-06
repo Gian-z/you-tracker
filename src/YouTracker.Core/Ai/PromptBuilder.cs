@@ -1,4 +1,5 @@
 using System.Text;
+using YouTracker.Core.Abstractions;
 using YouTracker.Core.Domain;
 using YouTracker.Core.Metrics;
 
@@ -67,6 +68,23 @@ public static class PromptBuilder
                 .AppendLine(
                     string.IsNullOrWhiteSpace(w.Text) ? "-" : w.Text.ReplaceLineEndings(" ")
                 );
+        }
+        return sb.ToString();
+    }
+
+    public static string Commits(IEnumerable<CommitActivity> commits, TimeZoneInfo timeZone)
+    {
+        var sb = new StringBuilder(
+            "## Git commits in the period — factual evidence of the dev's work (local time | repo | message)\n"
+        );
+        foreach (var c in commits.OrderBy(x => x.Timestamp))
+        {
+            var local = TimeZoneInfo.ConvertTime(c.Timestamp, timeZone);
+            sb.Append(local.ToString("yyyy-MM-dd HH:mm"))
+                .Append(" | ")
+                .Append(c.Repo)
+                .Append(" | ")
+                .AppendLine(c.Message.ReplaceLineEndings(" "));
         }
         return sb.ToString();
     }

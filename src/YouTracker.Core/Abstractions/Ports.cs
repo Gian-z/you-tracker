@@ -44,6 +44,27 @@ public interface IWorkItemReader
     Task<IReadOnlyList<WorkItemType>> GetWorkItemTypesAsync(CancellationToken ct = default);
 }
 
+/// <summary>A commit by the current user — factual evidence of what was worked on when.</summary>
+public sealed record CommitActivity(
+    string Sha,
+    DateTimeOffset Timestamp,
+    string Repo,
+    string Message
+);
+
+/// <summary>
+/// Read port for the current user's development activity (implemented by the Git module;
+/// replaceable by e.g. a GitHub adapter). Always the token/machine owner — never another dev.
+/// </summary>
+public interface ICommitActivityReader
+{
+    Task<IReadOnlyList<CommitActivity>> GetCommitsAsync(
+        DateOnly from,
+        DateOnly to,
+        CancellationToken ct = default
+    );
+}
+
 /// <summary>Read port for the tracker's user directory.</summary>
 public interface IUserDirectory
 {

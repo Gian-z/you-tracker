@@ -13,6 +13,7 @@ namespace YouTracker.Core.Application.Handlers;
 public sealed class DraftWorkLogQueryHandler(
     IIssueReader issues,
     IWorkItemReader workItems,
+    ICommitActivityReader activity,
     IAiProvider ai,
     AppConfig config,
     TimeProvider time
@@ -32,6 +33,10 @@ public sealed class DraftWorkLogQueryHandler(
         var booked = await workItems
             .GetWorkItemsAsync(query.Dev, query.Date, query.Date, ct)
             .ConfigureAwait(false);
+        // Commits are local-machine evidence — only meaningful for the current user.
+        IReadOnlyList<CommitActivity> commits = query.Dev is null
+            ? await activity.GetCommitsAsync(query.Date, query.Date, ct).ConfigureAwait(false)
+            : [];
 
         var userPrompt =
             PromptBuilder.Workday(
@@ -42,8 +47,15 @@ public sealed class DraftWorkLogQueryHandler(
             + PromptBuilder.IssueList(known)
             + PromptBuilder.WorkItemTypeList(types)
             + PromptBuilder.WorkItemList(booked)
+            + (commits.Count > 0 ? PromptBuilder.Commits(commits, config.TimeZone) : "")
             + $"\n## Task\nThe user describes their work for {query.Date:yyyy-MM-dd}. "
             + "Map each described activity to one issue from the list and propose work items (drafts). "
+            + (
+                commits.Count > 0
+                    ? "The git commits are factual evidence: use them to identify issues (ticket IDs like "
+                        + "[XBOX-548] in commit messages or branch-style prefixes) and to corroborate what was worked on. "
+                    : ""
+            )
             + "Do not duplicate time that is already booked. Anything you cannot map goes into 'unmatched'. "
             + $"\n\n## User description\n{query.FreeText}";
 
@@ -66,6 +78,7 @@ public sealed class DraftWorkLogQueryHandler(
 public sealed class SuggestGapFillsQueryHandler(
     IIssueReader issues,
     IWorkItemReader workItems,
+    ICommitActivityReader activity,
     IAiProvider ai,
     AppConfig config,
     TimeProvider time
@@ -97,6 +110,10 @@ public sealed class SuggestGapFillsQueryHandler(
             .ConfigureAwait(false);
         var known = DraftWorkLogQueryHandler.Merge(open, recent);
         var types = await workItems.GetWorkItemTypesAsync(ct).ConfigureAwait(false);
+        // Commits are local-machine evidence — only meaningful for the current user.
+        IReadOnlyList<CommitActivity> commits = query.Dev is null
+            ? await activity.GetCommitsAsync(query.From, query.To, ct).ConfigureAwait(false)
+            : [];
 
         var gapLines = string.Join(
             "\n",
@@ -107,9 +124,18 @@ public sealed class SuggestGapFillsQueryHandler(
             + PromptBuilder.IssueList(known)
             + PromptBuilder.WorkItemTypeList(types)
             + PromptBuilder.WorkItemList(items)
+            + (commits.Count > 0 ? PromptBuilder.Commits(commits, config.TimeZone) : "")
             + $"\n## Gap days\n{gapLines}\n"
-            + "\n## Task\nPropose plausible work items (drafts) that fill each gap day, based on which issues "
-            + "the user recently worked on or updated. Prefer issues already booked adjacent days. "
+            + "\n## Task\nPropose plausible work items (drafts) that fill each gap day. "
+            + (
+                commits.Count > 0
+                    ? "PRIORITIZE the git commits: their timestamps show which days the dev worked on what, "
+                        + "and ticket IDs in the messages (e.g. [XBOX-548]) identify the issue directly — such "
+                        + "proposals deserve high confidence. Fall back to recently updated/booked issues only "
+                        + "for gaps without commit evidence. "
+                    : "Base them on which issues the user recently worked on or updated. "
+                        + "Prefer issues already booked adjacent days. "
+            )
             + "Mark every proposal with honest confidence (these are guesses to review, not facts). "
             + "Do not exceed the missing minutes per day. Unexplainable gaps go into 'unmatched'.";
 
@@ -126,6 +152,7 @@ public sealed class SuggestGapFillsQueryHandler(
 
 public sealed class SummarizePeriodQueryHandler(
     IWorkItemReader workItems,
+    ICommitActivityReader activity,
     IAiProvider ai,
     AppConfig config,
     TimeProvider time
@@ -150,6 +177,10 @@ public sealed class SummarizePeriodQueryHandler(
             config.TargetMinutesPerWorkday
         );
 
+        IReadOnlyList<CommitActivity> commits = query.Dev is null
+            ? await activity.GetCommitsAsync(query.From, query.To, ct).ConfigureAwait(false)
+            : [];
+
         var userPrompt =
             PromptBuilder.Workday(
                 config.Today(time),
@@ -157,9 +188,15 @@ public sealed class SummarizePeriodQueryHandler(
                 config.Workday.Timezone
             )
             + PromptBuilder.WorkItemList(items)
+            + (commits.Count > 0 ? PromptBuilder.Commits(commits, config.TimeZone) : "")
             + PromptBuilder.Metrics(overview)
             + $"\n## Task\nWrite a standup-ready recap of {query.From:yyyy-MM-dd} – {query.To:yyyy-MM-dd}: "
             + "2-5 sentences overall, then one bullet per issue with the booked time. "
+            + (
+                commits.Count > 0
+                    ? "Use the git commits to make the recap concrete (what was actually built/fixed). "
+                    : ""
+            )
             + "Mention notable gaps or focus observations in one sentence, without moralizing.";
 
         return await ai.CompleteTextAsync(PromptBuilder.SystemBase, userPrompt, ct)
