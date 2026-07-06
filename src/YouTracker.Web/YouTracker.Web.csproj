@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\YouTracker.Core\YouTracker.Core.csproj" />
+    <ProjectReference Include="..\YouTracker.Infrastructure.YouTrack\YouTracker.Infrastructure.YouTrack.csproj" />
+    <ProjectReference Include="..\YouTracker.Infrastructure.Anthropic\YouTracker.Infrastructure.Anthropic.csproj" />
+    <ProjectReference Include="..\YouTracker.Infrastructure.ClaudeCli\YouTracker.Infrastructure.ClaudeCli.csproj" />
+    <ProjectReference Include="..\YouTracker.Infrastructure.Storage\YouTracker.Infrastructure.Storage.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
