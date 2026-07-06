@@ -22,7 +22,7 @@ dotnet run --project src/YouTracker.Web
 
 ## Web GUI
 
-`YouTracker.Web` hosts a REST API (`/api/*`) plus the Angular SPA (Tasks · Week · Assistant, live timer widget, AI draft-review commit gate — same features and same confirm-before-write rule as the TUI).
+`YouTracker.Web` hosts a REST API (`/api/*`) plus the Angular SPA. The **Dashboard** (default page) is a one-page overview replacing the YouTrack dashboard: KPI tiles (today/week booked vs target, Fokus-Score, ticket count), the ticket list from your query, a status distribution, unclaimed sprint tasks, today's bookings with one-click presets, and a compact AI panel (draft / gaps / summary / triage with sprint pickup suggestions). Dedicated pages remain for Tasks · Week · Assistant; the timer widget and the AI draft-review commit gate work everywhere — same confirm-before-write rule as the TUI.
 
 - **Use it:** `dotnet run --project src/YouTracker.Web` → open http://localhost:5210
 - **Frontend development:** `cd frontend; npm start` → http://localhost:4200 with `/api` proxied to :5210 (run the web host alongside)
