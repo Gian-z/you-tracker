@@ -51,6 +51,9 @@ public sealed record TriageResult(
     IReadOnlyList<TriagedIssue> SprintSuggestions
 );
 
+/// <summary>AI-written German Fazit for one developer (facts computed deterministically upstream).</summary>
+public sealed record SprintVerdict(string Login, string Text);
+
 public sealed record TimerStopResult(
     string IssueId,
     string IssueSummary,

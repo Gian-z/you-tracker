@@ -42,6 +42,15 @@ Directory.CreateDirectory(wwwroot);
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://localhost:5210");
 
+// Enums (AmpelStatus, HeatCellState, DayOfWeek) travel as camelCase strings.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter(
+            System.Text.Json.JsonNamingPolicy.CamelCase
+        )
+    )
+);
+
 builder.Services.AddYouTrackerCore();
 builder.Services.AddYouTrackerYouTrack();
 builder.Services.AddYouTrackerStorage();
@@ -232,6 +241,38 @@ api.MapPost(
     "/ai/triage",
     (IDispatcher dispatcher, CancellationToken ct, string? dev = null) =>
         dispatcher.QueryAsync(new TriageIssuesQuery(Clean(dev)), ct)
+);
+
+// --- Sprint dashboard (Scrum Master view) ---
+
+api.MapGet(
+    "/team",
+    async (IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+    {
+        var team = await dispatcher.QueryAsync(new GetTeamConfigQuery(), ct);
+        await http.Response.WriteAsJsonAsync(team, ct);
+    }
+);
+
+api.MapGet(
+    "/sprint/dashboard",
+    (IDispatcher dispatcher, string sprint, CancellationToken ct, bool refresh = false) =>
+        dispatcher.QueryAsync(new GetSprintDashboardQuery(sprint, BypassCache: refresh), ct)
+);
+
+api.MapPost(
+    "/sprint/absences",
+    (SaveAbsencesRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.SendAsync(
+            new SaveSprintAbsencesCommand(request.SprintName, request.Absences),
+            ct
+        )
+);
+
+api.MapPost(
+    "/ai/sprint-verdicts",
+    (SprintVerdictsRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.QueryAsync(new GenerateSprintVerdictsQuery(request.SprintName), ct)
 );
 
 // --- Booking presets (standard recurring bookings, stored locally) ---

@@ -8,8 +8,13 @@ using YouTracker.Core.Domain;
 
 namespace YouTracker.Infrastructure.YouTrack;
 
-/// <summary>YouTrack REST adapter implementing the Core issue/work-item/user ports.</summary>
-public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWriter, IUserDirectory
+/// <summary>YouTrack REST adapter implementing the Core issue/work-item/user/sprint ports.</summary>
+public sealed class YouTrackClient
+    : IIssueReader,
+        IWorkItemReader,
+        IWorkItemWriter,
+        IUserDirectory,
+        ISprintReader
 {
     private const string IssueFields =
         "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))";
@@ -153,6 +158,89 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
         }
         return result;
     }
+
+    public async Task<IReadOnlyList<SprintTaskCategory>> GetSprintTaskCategoriesAsync(
+        string taskQuery,
+        CancellationToken ct = default
+    )
+    {
+        // Roadmapvorhaben lives on the parent feature — traverse `Subtask INWARD` links.
+        var fields =
+            "idReadable,links(direction,linkType(name),issues(idReadable,customFields(name,value(name))))";
+        var issues = await GetAsync<List<IssueDto>>(
+            $"issues?query={Uri.EscapeDataString(taskQuery)}&$top=500&fields={fields}",
+            ct
+        );
+        return issues
+            .Where(i => i.IdReadable is not null)
+            .Select(i => new SprintTaskCategory(i.IdReadable!, ParentRoadmapvorhaben(i)))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<SprintFeature>> GetSprintFeaturesAsync(
+        string featureQuery,
+        CancellationToken ct = default
+    )
+    {
+        var fields = "idReadable,summary,customFields(name,value(name,minutes,login))";
+        var issues = await GetAsync<List<IssueDto>>(
+            $"issues?query={Uri.EscapeDataString(featureQuery)}&$top=200&fields={fields}",
+            ct
+        );
+
+        return issues
+            .Where(i => i.IdReadable is not null)
+            .Select(i =>
+            {
+                JsonElement? Field(string name) =>
+                    i
+                        .CustomFields?.FirstOrDefault(f =>
+                            string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)
+                        )
+                        ?.Value;
+                return new SprintFeature(
+                    i.IdReadable!,
+                    i.Summary ?? "",
+                    ValueName(Field("Roadmapvorhaben")),
+                    ValueLogin(Field("Assignee")),
+                    ValueMinutes(Field("Estimation")),
+                    ValueMinutes(Field("Spent time"))
+                );
+            })
+            .ToList();
+    }
+
+    private static string? ParentRoadmapvorhaben(IssueDto task)
+    {
+        foreach (var link in task.Links ?? [])
+        {
+            if (
+                !string.Equals(link.LinkType?.Name, "Subtask", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(link.Direction, "INWARD", StringComparison.OrdinalIgnoreCase)
+            )
+                continue;
+            foreach (var parent in link.Issues ?? [])
+            {
+                var rmv = parent
+                    .CustomFields?.FirstOrDefault(f =>
+                        string.Equals(f.Name, "Roadmapvorhaben", StringComparison.OrdinalIgnoreCase)
+                    )
+                    ?.Value;
+                if (ValueName(rmv) is { } name)
+                    return name;
+            }
+        }
+        return null;
+    }
+
+    private static string? ValueLogin(JsonElement? value) =>
+        value is { ValueKind: JsonValueKind.Object } v
+        && v.TryGetProperty("login", out var login)
+        && login.ValueKind == JsonValueKind.String
+            ? login.GetString()
+        : value is { ValueKind: JsonValueKind.Array } arr && arr.GetArrayLength() > 0
+            ? ValueLogin(arr[0])
+        : null;
 
     public async Task<UserInfo> GetCurrentUserAsync(CancellationToken ct = default)
     {

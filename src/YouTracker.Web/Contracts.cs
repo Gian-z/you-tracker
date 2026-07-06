@@ -23,6 +23,13 @@ public sealed record AiDraftRequest(string FreeText, DateOnly Date, string? Dev 
 
 public sealed record PeriodRequest(DateOnly From, DateOnly To, string? Dev = null);
 
+public sealed record SaveAbsencesRequest(
+    string SprintName,
+    IReadOnlyList<YouTracker.Core.Abstractions.TeamAbsence> Absences
+);
+
+public sealed record SprintVerdictsRequest(string SprintName);
+
 public sealed record SavePresetRequest(
     string? Id,
     string Name,

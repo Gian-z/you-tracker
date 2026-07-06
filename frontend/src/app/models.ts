@@ -130,6 +130,105 @@ export interface TriageEntry {
   reasons: string[];
 }
 
+// --- Sprint dashboard (Scrum Master view) ---
+
+export interface TeamMember {
+  login: string;
+  name: string;
+  thresholdMinutes: number;
+  weekdays: string[];
+}
+
+export interface TeamAbsence {
+  login: string;
+  from: string;
+  to: string;
+}
+
+export interface TeamSprint {
+  name: string;
+  workdays: string[];
+  absences: TeamAbsence[];
+}
+
+export interface TeamConfig {
+  name: string;
+  projects: string[];
+  taskQuery: string;
+  featureSprintQuery: string;
+  ceremonyPatterns: string[];
+  members: TeamMember[];
+  sprints: TeamSprint[];
+}
+
+export type HeatCellState = 'reached' | 'partial' | 'low' | 'none' | 'today' | 'off' | 'future';
+
+export interface HeatmapCell {
+  date: string;
+  minutes: number;
+  state: HeatCellState;
+}
+
+export interface DevHeatmapRow {
+  login: string;
+  name: string;
+  cells: HeatmapCell[];
+  totalMinutes: number;
+}
+
+export interface RoadmapGapRow {
+  login: string;
+  name: string;
+  roadmapMinutes: number;
+  nonRoadmapMinutes: number;
+  unknownMinutes: number;
+  targetMinutes: number;
+  attainmentPercent: number;
+  availableDays: number;
+}
+
+export interface FeatureDeviation {
+  issueId: string;
+  summary: string;
+  assigneeLogin: string | null;
+  roadmapvorhaben: string | null;
+  estimateMinutes: number | null;
+  spentMinutes: number;
+  gapMinutes: number;
+  gapPercent: number | null;
+}
+
+export type AmpelStatus = 'onTrack' | 'achtung' | 'problem' | 'abwesend';
+
+export interface DevVerdictFacts {
+  login: string;
+  name: string;
+  ampel: AmpelStatus;
+  daysWithBookings: number;
+  availableDays: number;
+  roadmapMinutes: number;
+  targetMinutes: number;
+  attainmentPercent: number;
+  nonRoadmapMinutes: number;
+  unknownMinutes: number;
+  signals: string[];
+  ownFeatures: FeatureDeviation[];
+}
+
+export interface SprintDashboard {
+  sprintName: string;
+  workdays: string[];
+  heatmap: DevHeatmapRow[];
+  gaps: RoadmapGapRow[];
+  deviations: FeatureDeviation[];
+  verdicts: DevVerdictFacts[];
+}
+
+export interface SprintVerdict {
+  login: string;
+  text: string;
+}
+
 export interface TriageResult {
   ranked: TriageEntry[];
   focusSuggestion: string;

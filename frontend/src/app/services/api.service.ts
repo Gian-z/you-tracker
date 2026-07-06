@@ -6,7 +6,12 @@ import {
   CommitResult,
   DraftResult,
   Meta,
+  SprintDashboard,
+  SprintVerdict,
   TaskListItem,
+  TeamAbsence,
+  TeamConfig,
+  TeamSprint,
   TimeOverview,
   TimerState,
   TimerStopResult,
@@ -67,6 +72,22 @@ export class ApiService {
 
   getSprintPool(refresh = false, dev: string | null = null): Promise<TaskListItem[]> {
     return this.get<TaskListItem[]>('/api/sprintpool', this.withDev({ refresh: String(refresh) }, dev));
+  }
+
+  getTeam(): Promise<TeamConfig | null> {
+    return this.get<TeamConfig | null>('/api/team');
+  }
+
+  getSprintDashboard(sprint: string, refresh = false): Promise<SprintDashboard> {
+    return this.get<SprintDashboard>('/api/sprint/dashboard', { sprint, refresh: String(refresh) });
+  }
+
+  saveSprintAbsences(sprintName: string, absences: TeamAbsence[]): Promise<TeamSprint> {
+    return this.post<TeamSprint>('/api/sprint/absences', { sprintName, absences });
+  }
+
+  aiSprintVerdicts(sprintName: string): Promise<SprintVerdict[]> {
+    return this.post<SprintVerdict[]>('/api/ai/sprint-verdicts', { sprintName });
   }
 
   getPresets(): Promise<BookingPreset[]> {

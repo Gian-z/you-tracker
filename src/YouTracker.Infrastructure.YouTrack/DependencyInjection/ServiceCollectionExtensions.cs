@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWorkItemReader>(sp => sp.GetRequiredService<YouTrackClient>());
         services.AddSingleton<IWorkItemWriter>(sp => sp.GetRequiredService<YouTrackClient>());
         services.AddSingleton<IUserDirectory>(sp => sp.GetRequiredService<YouTrackClient>());
+        services.AddSingleton<ISprintReader>(sp => sp.GetRequiredService<YouTrackClient>());
         return services;
     }
 }

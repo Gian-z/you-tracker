@@ -2,6 +2,7 @@ using YouTracker.Core.Abstractions;
 using YouTracker.Core.Domain;
 using YouTracker.Core.Metrics;
 using YouTracker.Core.ReadModels;
+using SprintVerdict = YouTracker.Core.ReadModels.SprintVerdict;
 
 namespace YouTracker.Core.Application;
 
@@ -60,6 +61,22 @@ public sealed record GetSprintPoolQuery(bool BypassCache = false, string? Dev = 
 }
 
 public sealed record GetTimerStateQuery : IQuery<TimerState?>;
+
+// --- Sprint dashboard (Scrum Master view) ---
+
+public sealed record GetTeamConfigQuery : IQuery<TeamConfig?>;
+
+public sealed record GetSprintDashboardQuery(string SprintName, bool BypassCache = false)
+    : IQuery<SprintDashboard>,
+        ICacheableQuery
+{
+    public string CacheKey => $"workitems:sprint:{SprintName}";
+    public TimeSpan Ttl => TimeSpan.FromMinutes(2);
+}
+
+/// <summary>German two-paragraph Fazit per dev; Ampel + KPIs are computed facts, AI writes prose only.</summary>
+public sealed record GenerateSprintVerdictsQuery(string SprintName)
+    : IQuery<IReadOnlyList<SprintVerdict>>;
 
 public sealed record GetPresetsQuery : IQuery<IReadOnlyList<BookingPreset>>;
 

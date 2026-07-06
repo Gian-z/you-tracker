@@ -95,6 +95,24 @@ public static class ServiceCollectionExtensions
             GetSprintPoolQueryHandler
         >();
 
+        // Sprint dashboard
+        services.AddTransient<
+            IQueryHandler<GetTeamConfigQuery, TeamConfig?>,
+            GetTeamConfigQueryHandler
+        >();
+        services.AddTransient<
+            IQueryHandler<GetSprintDashboardQuery, SprintDashboard>,
+            GetSprintDashboardQueryHandler
+        >();
+        services.AddTransient<
+            IQueryHandler<GenerateSprintVerdictsQuery, IReadOnlyList<SprintVerdict>>,
+            GenerateSprintVerdictsQueryHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<SaveSprintAbsencesCommand, TeamSprint>,
+            SaveSprintAbsencesCommandHandler
+        >();
+
         // Directory + presets
         services.AddTransient<
             IQueryHandler<GetUsersQuery, IReadOnlyList<UserInfo>>,

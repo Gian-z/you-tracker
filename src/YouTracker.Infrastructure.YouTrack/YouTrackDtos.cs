@@ -20,6 +20,19 @@ internal sealed class IssueDto
     public long Updated { get; set; }
     public ProjectDto? Project { get; set; }
     public List<CustomFieldDto>? CustomFields { get; set; }
+    public List<IssueLinkDto>? Links { get; set; }
+}
+
+internal sealed class IssueLinkDto
+{
+    public string? Direction { get; set; }
+    public LinkTypeDto? LinkType { get; set; }
+    public List<IssueDto>? Issues { get; set; }
+}
+
+internal sealed class LinkTypeDto
+{
+    public string? Name { get; set; }
 }
 
 internal sealed class ProjectDto

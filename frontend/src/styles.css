@@ -808,3 +808,80 @@ label > select {
   gap: 0.75rem;
   align-content: start;
 }
+
+/* --- sprint dashboard --- */
+.sprint .card { margin-bottom: 0.75rem; }
+.sprint .toolbar label.inline { display: inline-flex; align-items: center; gap: 0.4rem; }
+.sprint select, .sprint input[type="date"] {
+  font: inherit; padding: 0.25rem 0.4rem; border-radius: 6px;
+  border: 1px solid var(--border, #ccc); background: transparent; color: inherit;
+}
+
+.heatmap-table { border-collapse: collapse; width: 100%; }
+.heatmap-table th, .heatmap-table td {
+  padding: 0.3rem 0.5rem; font-size: 0.82rem; text-align: right; white-space: nowrap;
+}
+.heatmap-table .sticky-col {
+  position: sticky; left: 0; text-align: left; background: var(--bg, inherit);
+  font-weight: 600; z-index: 1;
+}
+.heatmap-table td.heat { font-variant-numeric: tabular-nums; min-width: 3.2rem; border-radius: 4px; }
+.heatmap-table td.total { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* Heatmap states: light theme tints; dark overrides below. Text always readable. */
+.heat-reached { background: #d7ecd9; color: #14531d; }
+.heat-partial { background: #f4e8c8; color: #6b4e00; }
+.heat-low     { background: #f6d9d4; color: #7a1f14; }
+.heat-none    { background: #eecfcf; color: #5c1010; }
+.heat-today   { background: #d6e4f7; color: #123a6d; }
+.heat-off, .heat-future {
+  background: repeating-linear-gradient(45deg, transparent, transparent 4px,
+    color-mix(in srgb, var(--muted, #888) 18%, transparent) 4px,
+    color-mix(in srgb, var(--muted, #888) 18%, transparent) 8px);
+  color: var(--muted, #888);
+}
+@media (prefers-color-scheme: dark) {
+  .heat-reached { background: #1a4731; color: #9fe0b3; }
+  .heat-partial { background: #3d2e0a; color: #ecc94b; }
+  .heat-low     { background: #3d1212; color: #f19999; }
+  .heat-none    { background: #1c1212; color: #b06a6a; }
+  .heat-today   { background: #0d2044; color: #9dc1f7; }
+}
+.legend { display: flex; gap: 0.6rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.heat-chip { padding: 0.1rem 0.5rem; border-radius: 4px; }
+
+.gap-row {
+  display: grid; grid-template-columns: 4rem 1fr minmax(16rem, auto);
+  gap: 0.6rem; align-items: center; margin: 0.35rem 0; font-size: 0.88rem;
+}
+.gap-label { font-weight: 600; }
+.gap-track {
+  background: color-mix(in srgb, var(--muted, #888) 14%, transparent);
+  border-radius: 4px; height: 14px; overflow: hidden;
+}
+.gap-bar {
+  display: block; height: 100%; min-width: 4px;
+  background: var(--accent, #2e7d32); border-radius: 0 4px 4px 0;
+}
+.gap-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.data-table td.over { color: #b45309; }
+.data-table td.under { color: var(--muted, #888); }
+
+.verdict-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0.75rem;
+}
+.verdict-card {
+  border: 1px solid var(--border, #ccc); border-left-width: 4px;
+  border-radius: 8px; padding: 0.6rem 0.8rem;
+}
+.verdict-card.ampel-onTrack  { border-left-color: #2e7d32; }
+.verdict-card.ampel-achtung  { border-left-color: #b45309; }
+.verdict-card.ampel-problem  { border-left-color: #c62828; }
+.verdict-card.ampel-abwesend { border-left-color: var(--muted, #888); }
+.verdict-head { display: flex; gap: 0.5rem; align-items: baseline; }
+.verdict-kpis { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 0.3rem 0; }
+.verdict-text { white-space: pre-wrap; margin-top: 0.5rem; border-top: 1px dashed var(--border, #ccc); padding-top: 0.5rem; }
+
+.absence-editor .absence-row { display: flex; gap: 0.5rem; align-items: center; margin: 0.3rem 0; }
+.deviation-summary { margin-left: 0.5rem; }

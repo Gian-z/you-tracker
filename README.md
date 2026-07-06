@@ -51,6 +51,17 @@ The web GUI's top-bar picker switches the viewed dev (dropdown from YouTrack's u
 
 With `git.scanRoots` configured (e.g. `["C:/cmi-github"]`), every local clone underneath is scanned via `git log --all` for your commits (author defaults to `git config user.email`, override with `git.author`). Commit timestamps and messages — including CMI-style ticket IDs like `[XBOX-548]` — feed the AI's work-log drafting, gap fills, and summaries as factual evidence, so gap proposals cite what you actually committed instead of guessing from adjacency. Commit context applies only when viewing yourself; it never leaves your machine except inside the AI prompt.
 
+## Sprint dashboard (Scrum Master view)
+
+The **Sprint** page ports the `youtrack-sprint-zeitbuchungen` skill: per-dev booking heatmap over
+the sprint's workdays, Roadmap-Buchungsgap (booked roadmap hours vs threshold × available days,
+via `Roadmapvorhaben` on parent features through Subtask links), top-15 feature estimation
+deviations (ceremonies excluded), and a per-dev Fazit. The Ampel (✅/⚠/🔴/⬜) and all KPIs are
+computed deterministically (`SprintMetricsCalculator`, unit-tested); the AI only writes the German
+two-paragraph prose from those fixed facts. Team setup lives in `%APPDATA%\you-tracker\team.json`
+(members, thresholds, weekday availability, sprints with workdays); sprint **absences are editable
+in the UI**. See `docs/feature-map-sprint-dashboard.md` for the full mapping.
+
 ## Booking presets
 
 Recurring bookings (daily standup, plannings, …) can be saved as presets: tick **"Save as preset"** in the Log time dialog, then book them with one click from the strip on the Week page (books the preset's duration for today). Presets live in `%APPDATA%\you-tracker\presets.json`.

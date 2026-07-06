@@ -27,3 +27,9 @@ public sealed record StopTimerCommand : ICommand<TimerStopResult?>;
 public sealed record SavePresetCommand(BookingPreset Preset) : ICommand<BookingPreset>;
 
 public sealed record DeletePresetCommand(string Id) : ICommand<bool>;
+
+/// <summary>Replaces the absence list of one sprint in the team config (UI absence editor).</summary>
+public sealed record SaveSprintAbsencesCommand(
+    string SprintName,
+    IReadOnlyList<TeamAbsence> Absences
+) : ICommand<TeamSprint>;

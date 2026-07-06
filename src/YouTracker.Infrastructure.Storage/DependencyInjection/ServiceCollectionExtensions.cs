@@ -11,6 +11,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IConfigStore>(_ => new JsonConfigStore());
         services.AddSingleton<ITimerStore>(_ => new FileTimerStore());
         services.AddSingleton<IPresetStore>(_ => new FilePresetStore());
+        services.AddSingleton<ITeamConfigStore>(_ => new FileTeamConfigStore());
         return services;
     }
 }
