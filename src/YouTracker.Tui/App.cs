@@ -60,7 +60,11 @@ public sealed class App
                     new StatusItem(Key.F2, "~F2~ Time", () => ShowView(_time!)),
                     new StatusItem(Key.F3, "~F3~ AI", () => ShowView(_ai!)),
                     new StatusItem(Key.CtrlMask | Key.T, "~^T~ Timer", ToggleTimer),
-                    new StatusItem(Key.CtrlMask | Key.Q, "~^Q~ Quit", Application.RequestStop),
+                    new StatusItem(
+                        Key.CtrlMask | Key.Q,
+                        "~^Q~ Quit",
+                        () => Application.RequestStop()
+                    ),
                     _timerItem,
                 }
             );
