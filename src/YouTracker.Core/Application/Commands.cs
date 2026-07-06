@@ -22,3 +22,8 @@ public sealed record StartTimerCommand(string IssueId, string IssueSummary) : IC
 
 /// <summary>Stops the running timer and returns the elapsed prefill for the log dialog. Does not log time itself.</summary>
 public sealed record StopTimerCommand : ICommand<TimerStopResult?>;
+
+/// <summary>Creates or updates a booking preset (matched by Id; empty Id = create new).</summary>
+public sealed record SavePresetCommand(BookingPreset Preset) : ICommand<BookingPreset>;
+
+public sealed record DeletePresetCommand(string Id) : ICommand<bool>;

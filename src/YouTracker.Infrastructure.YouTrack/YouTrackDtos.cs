@@ -10,6 +10,7 @@ internal sealed class UserDto
     public string? Id { get; set; }
     public string? Login { get; set; }
     public string? FullName { get; set; }
+    public bool Banned { get; set; }
 }
 
 internal sealed class IssueDto

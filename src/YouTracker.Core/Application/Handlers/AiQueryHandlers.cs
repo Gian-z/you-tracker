@@ -8,6 +8,7 @@ using YouTracker.Core.ReadModels;
 namespace YouTracker.Core.Application.Handlers;
 
 // AI handlers receive reader ports and IAiProvider only — structurally unable to write.
+// `Dev` (null = current user) scopes which developer's tickets/bookings feed the prompts.
 
 public sealed class DraftWorkLogQueryHandler(
     IIssueReader issues,
@@ -22,14 +23,14 @@ public sealed class DraftWorkLogQueryHandler(
         CancellationToken ct = default
     )
     {
-        var open = await issues.GetMyOpenIssuesAsync(ct).ConfigureAwait(false);
+        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         var recent = await issues
-            .GetMyRecentlyActiveIssuesAsync(query.Date.AddDays(-7), query.Date, ct)
+            .GetRecentlyActiveIssuesAsync(query.Dev, query.Date.AddDays(-7), query.Date, ct)
             .ConfigureAwait(false);
         var known = Merge(open, recent);
         var types = await workItems.GetWorkItemTypesAsync(ct).ConfigureAwait(false);
         var booked = await workItems
-            .GetMyWorkItemsAsync(query.Date, query.Date, ct)
+            .GetWorkItemsAsync(query.Dev, query.Date, query.Date, ct)
             .ConfigureAwait(false);
 
         var userPrompt =
@@ -77,7 +78,7 @@ public sealed class SuggestGapFillsQueryHandler(
     {
         var today = config.Today(time);
         var items = await workItems
-            .GetMyWorkItemsAsync(query.From, query.To, ct)
+            .GetWorkItemsAsync(query.Dev, query.From, query.To, ct)
             .ConfigureAwait(false);
         var overview = MetricsCalculator.BuildOverview(
             items,
@@ -90,9 +91,9 @@ public sealed class SuggestGapFillsQueryHandler(
         if (gaps.Count == 0)
             return new WorkLogDraftResult([], []);
 
-        var open = await issues.GetMyOpenIssuesAsync(ct).ConfigureAwait(false);
+        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         var recent = await issues
-            .GetMyRecentlyActiveIssuesAsync(query.From.AddDays(-7), query.To, ct)
+            .GetRecentlyActiveIssuesAsync(query.Dev, query.From.AddDays(-7), query.To, ct)
             .ConfigureAwait(false);
         var known = DraftWorkLogQueryHandler.Merge(open, recent);
         var types = await workItems.GetWorkItemTypesAsync(ct).ConfigureAwait(false);
@@ -136,7 +137,7 @@ public sealed class SummarizePeriodQueryHandler(
     )
     {
         var items = await workItems
-            .GetMyWorkItemsAsync(query.From, query.To, ct)
+            .GetWorkItemsAsync(query.Dev, query.From, query.To, ct)
             .ConfigureAwait(false);
         if (items.Count == 0)
             return $"Keine Buchungen im Zeitraum {query.From:yyyy-MM-dd} – {query.To:yyyy-MM-dd}.";
@@ -180,11 +181,11 @@ public sealed class TriageIssuesQueryHandler(
     )
     {
         var today = config.Today(time);
-        var open = await issues.GetMyOpenIssuesAsync(ct).ConfigureAwait(false);
+        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         if (open.Count == 0)
             return new TriageResult([], "Keine offenen Tickets.");
         var recent = await workItems
-            .GetMyWorkItemsAsync(today.AddDays(-14), today, ct)
+            .GetWorkItemsAsync(query.Dev, today.AddDays(-14), today, ct)
             .ConfigureAwait(false);
         var hygiene = MetricsCalculator.Hygiene(
             open,

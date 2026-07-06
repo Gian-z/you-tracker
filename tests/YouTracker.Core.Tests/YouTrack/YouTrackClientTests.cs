@@ -49,14 +49,14 @@ public sealed class YouTrackClientTests
         var (client, handler) = CreateClient();
         handler.Enqueue(HttpStatusCode.OK, OpenIssuesJson);
 
-        await client.GetMyOpenIssuesAsync();
+        await client.GetOpenIssuesAsync(null);
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Get, request.Method);
         Assert.StartsWith("https://yt.example.com/api/issues?", request.Uri.AbsoluteUri);
         Assert.Contains(
-            "query=for%3A%20me%20%23Unresolved%20sort%20by%3A%20updated%20desc",
-            request.Uri.AbsoluteUri
+            "query=for: me #Unresolved or work author: me #Unresolved sort by: updated desc",
+            Uri.UnescapeDataString(request.Uri.AbsoluteUri)
         );
         Assert.Contains("$top=100", request.Uri.AbsoluteUri);
         Assert.Contains(
@@ -73,7 +73,7 @@ public sealed class YouTrackClientTests
         var (client, handler) = CreateClient();
         handler.Enqueue(HttpStatusCode.OK, OpenIssuesJson);
 
-        var issues = await client.GetMyOpenIssuesAsync();
+        var issues = await client.GetOpenIssuesAsync(null);
 
         Assert.Equal(2, issues.Count);
 
@@ -100,7 +100,8 @@ public sealed class YouTrackClientTests
         var (client, handler) = CreateClient();
         handler.Enqueue(HttpStatusCode.OK, "[]");
 
-        await client.GetMyRecentlyActiveIssuesAsync(
+        await client.GetRecentlyActiveIssuesAsync(
+            null,
             new DateOnly(2026, 7, 1),
             new DateOnly(2026, 7, 5)
         );
@@ -229,7 +230,7 @@ public sealed class YouTrackClientTests
 
         var from = new DateOnly(2026, 7, 1);
         var to = new DateOnly(2026, 7, 7);
-        var items = await client.GetMyWorkItemsAsync(from, to);
+        var items = await client.GetWorkItemsAsync(null, from, to);
 
         var item = Assert.Single(items);
         Assert.Equal("142-1", item.Id);
@@ -254,7 +255,7 @@ public sealed class YouTrackClientTests
 
         // Second call must not re-probe the top-level workItems endpoint.
         handler.Enqueue(HttpStatusCode.OK, "[]");
-        await client.GetMyWorkItemsAsync(from, to);
+        await client.GetWorkItemsAsync(null, from, to);
         Assert.Equal(5, handler.Requests.Count);
         Assert.Contains("/api/issues?query=work%20author", handler.Requests[4].Uri.AbsoluteUri);
     }
@@ -282,7 +283,8 @@ public sealed class YouTrackClientTests
                 """
             );
 
-        var items = await client.GetMyWorkItemsAsync(
+        var items = await client.GetWorkItemsAsync(
+            null,
             new DateOnly(2026, 7, 1),
             new DateOnly(2026, 7, 7)
         );
@@ -300,7 +302,7 @@ public sealed class YouTrackClientTests
         handler.Enqueue(HttpStatusCode.InternalServerError, "boom");
 
         var ex = await Assert.ThrowsAsync<YouTrackApiException>(() =>
-            client.GetMyOpenIssuesAsync()
+            client.GetOpenIssuesAsync(null)
         );
 
         Assert.Equal(500, ex.StatusCode);
@@ -324,6 +326,80 @@ public sealed class YouTrackClientTests
             "admin/timeTrackingSettings/workItemTypes?fields=id,name",
             handler.Requests[0].Uri.AbsoluteUri
         );
+    }
+
+    [Fact]
+    public async Task GetOpenIssues_SubstitutesDevLoginIntoInvolvementQuery()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.GetOpenIssuesAsync("VVO");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains(
+            "query=for: VVO #Unresolved or work author: VVO #Unresolved",
+            Uri.UnescapeDataString(request.Uri.AbsoluteUri)
+        );
+    }
+
+    [Fact]
+    public async Task GetWorkItems_UsesDevLoginAsAuthorWithoutResolvingCurrentUser()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.GetWorkItemsAsync("VVO", new DateOnly(2026, 7, 1), new DateOnly(2026, 7, 7));
+
+        var request = Assert.Single(handler.Requests); // no users/me call
+        Assert.Contains("/api/workItems?author=VVO", request.Uri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task GetUsers_MapsAndFiltersBanned_SortsByFullName()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(
+            HttpStatusCode.OK,
+            """
+            [
+              { "login": "zzz", "fullName": "Anders, Zoe", "banned": false },
+              { "login": "old", "fullName": "Gone, User", "banned": true },
+              { "login": "gzw", "fullName": "Zwahlen, Gian-Luca", "banned": false }
+            ]
+            """
+        );
+
+        var users = await client.GetUsersAsync();
+
+        Assert.Equal(2, users.Count);
+        Assert.Equal("zzz", users[0].Login);
+        Assert.Equal("gzw", users[1].Login);
+        Assert.Contains("users?fields=login,fullName,banned", handler.Requests[0].Uri.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task GetUsers_ReturnsEmptyOnPermissionError()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.Forbidden, """{ "error": "Forbidden" }""");
+
+        Assert.Empty(await client.GetUsersAsync());
+    }
+
+    [Fact]
+    public async Task GetCurrentUser_MapsLoginAndFullName()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(
+            HttpStatusCode.OK,
+            """{ "id": "1-1", "login": "gzw", "fullName": "Zwahlen, Gian-Luca" }"""
+        );
+
+        var me = await client.GetCurrentUserAsync();
+
+        Assert.Equal("gzw", me.Login);
+        Assert.Equal("Zwahlen, Gian-Luca", me.FullName);
     }
 
     [Fact]

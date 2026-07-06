@@ -54,15 +54,21 @@ public sealed class TestServiceProvider : IServiceProvider
 public sealed class FakeIssueReader(params Issue[] issues) : IIssueReader
 {
     public int OpenIssuesCalls { get; private set; }
+    public List<string?> RequestedDevs { get; } = [];
     public List<Issue> Issues { get; } = [.. issues];
 
-    public Task<IReadOnlyList<Issue>> GetMyOpenIssuesAsync(CancellationToken ct = default)
+    public Task<IReadOnlyList<Issue>> GetOpenIssuesAsync(
+        string? devLogin,
+        CancellationToken ct = default
+    )
     {
         OpenIssuesCalls++;
+        RequestedDevs.Add(devLogin);
         return Task.FromResult<IReadOnlyList<Issue>>(Issues);
     }
 
-    public Task<IReadOnlyList<Issue>> GetMyRecentlyActiveIssuesAsync(
+    public Task<IReadOnlyList<Issue>> GetRecentlyActiveIssuesAsync(
+        string? devLogin,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default
@@ -74,7 +80,8 @@ public sealed class FakeWorkItemReader : IWorkItemReader
     public List<WorkItem> WorkItems { get; } = [];
     public List<WorkItemType> Types { get; } = [];
 
-    public Task<IReadOnlyList<WorkItem>> GetMyWorkItemsAsync(
+    public Task<IReadOnlyList<WorkItem>> GetWorkItemsAsync(
+        string? devLogin,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default
@@ -86,6 +93,31 @@ public sealed class FakeWorkItemReader : IWorkItemReader
     public Task<IReadOnlyList<WorkItemType>> GetWorkItemTypesAsync(
         CancellationToken ct = default
     ) => Task.FromResult<IReadOnlyList<WorkItemType>>(Types);
+}
+
+public sealed class FakeUserDirectory : IUserDirectory
+{
+    public UserInfo CurrentUser { get; set; } = new("GZW", "Zwahlen, Gian-Luca");
+    public List<UserInfo> Users { get; } = [];
+
+    public Task<UserInfo> GetCurrentUserAsync(CancellationToken ct = default) =>
+        Task.FromResult(CurrentUser);
+
+    public Task<IReadOnlyList<UserInfo>> GetUsersAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<UserInfo>>(Users);
+}
+
+public sealed class InMemoryPresetStore : IPresetStore
+{
+    public List<BookingPreset> Presets { get; } = [];
+
+    public IReadOnlyList<BookingPreset> Load() => [.. Presets];
+
+    public void Save(IReadOnlyList<BookingPreset> presets)
+    {
+        Presets.Clear();
+        Presets.AddRange(presets);
+    }
 }
 
 public sealed class FakeWorkItemWriter : IWorkItemWriter

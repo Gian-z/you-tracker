@@ -81,6 +81,28 @@ public static class ServiceCollectionExtensions
             ICommandHandler<StopTimerCommand, TimerStopResult?>,
             StopTimerCommandHandler
         >();
+        services.AddTransient<
+            ICommandHandler<SavePresetCommand, BookingPreset>,
+            SavePresetCommandHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<DeletePresetCommand, bool>,
+            DeletePresetCommandHandler
+        >();
+
+        // Directory + presets
+        services.AddTransient<
+            IQueryHandler<GetUsersQuery, IReadOnlyList<UserInfo>>,
+            GetUsersQueryHandler
+        >();
+        services.AddTransient<
+            IQueryHandler<GetCurrentUserQuery, UserInfo>,
+            GetCurrentUserQueryHandler
+        >();
+        services.AddTransient<
+            IQueryHandler<GetPresetsQuery, IReadOnlyList<BookingPreset>>,
+            GetPresetsQueryHandler
+        >();
 
         return services;
     }

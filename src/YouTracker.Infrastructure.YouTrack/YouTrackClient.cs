@@ -8,8 +8,8 @@ using YouTracker.Core.Domain;
 
 namespace YouTracker.Infrastructure.YouTrack;
 
-/// <summary>YouTrack REST adapter implementing the Core issue/work-item ports.</summary>
-public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWriter
+/// <summary>YouTrack REST adapter implementing the Core issue/work-item/user ports.</summary>
+public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWriter, IUserDirectory
 {
     private const string IssueFields =
         "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))";
@@ -44,9 +44,18 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
         );
     }
 
-    public async Task<IReadOnlyList<Issue>> GetMyOpenIssuesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Issue>> GetOpenIssuesAsync(
+        string? devLogin,
+        CancellationToken ct = default
+    )
     {
-        var query = Uri.EscapeDataString("for: me #Unresolved sort by: updated desc");
+        // "Involved" = assignee OR has booked time on the issue. No parentheses: the live
+        // instance rejects `(...) #Unresolved`; implicit AND binds tighter than `or`, so
+        // each branch carries its own #Unresolved.
+        var dev = DevQueryValue(devLogin);
+        var query = Uri.EscapeDataString(
+            $"for: {dev} #Unresolved or work author: {dev} #Unresolved sort by: updated desc"
+        );
         var issues = await GetAsync<List<IssueDto>>(
             $"issues?query={query}&$top=100&fields={IssueFields}",
             ct
@@ -54,14 +63,16 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
         return issues.Select(MapIssue).ToList();
     }
 
-    public async Task<IReadOnlyList<Issue>> GetMyRecentlyActiveIssuesAsync(
+    public async Task<IReadOnlyList<Issue>> GetRecentlyActiveIssuesAsync(
+        string? devLogin,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default
     )
     {
+        var dev = DevQueryValue(devLogin);
         var query = Uri.EscapeDataString(
-            $"updated by: me updated: {FormatDate(from)} .. {FormatDate(to)}"
+            $"updated by: {dev} updated: {FormatDate(from)} .. {FormatDate(to)}"
         );
         var issues = await GetAsync<List<IssueDto>>(
             $"issues?query={query}&$top=50&fields={IssueFields}",
@@ -70,13 +81,14 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
         return issues.Select(MapIssue).ToList();
     }
 
-    public async Task<IReadOnlyList<WorkItem>> GetMyWorkItemsAsync(
+    public async Task<IReadOnlyList<WorkItem>> GetWorkItemsAsync(
+        string? devLogin,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default
     )
     {
-        var login = await GetCurrentLoginAsync(ct);
+        var login = devLogin ?? await GetCurrentLoginAsync(ct);
 
         if (!_useIssueScopedWorkItems)
         {
@@ -96,9 +108,9 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
             }
         }
 
-        // Fallback: find issues with my work in the period, then read their work items.
+        // Fallback: find issues with the dev's work in the period, then read their work items.
         var query = Uri.EscapeDataString(
-            $"work author: me work date: {FormatDate(from)} .. {FormatDate(to)}"
+            $"work author: {DevQueryValue(devLogin)} work date: {FormatDate(from)} .. {FormatDate(to)}"
         );
         var issues = await GetAsync<List<IssueDto>>(
             $"issues?query={query}&fields=idReadable,summary",
@@ -114,13 +126,49 @@ public sealed class YouTrackClient : IIssueReader, IWorkItemReader, IWorkItemWri
             );
             result.AddRange(
                 items
-                    .Where(i => i.Author?.Login == login)
+                    .Where(i =>
+                        string.Equals(i.Author?.Login, login, StringComparison.OrdinalIgnoreCase)
+                    )
                     .Select(MapWorkItem)
                     .Where(w => w.Date >= from && w.Date <= to)
             );
         }
         return result;
     }
+
+    public async Task<UserInfo> GetCurrentUserAsync(CancellationToken ct = default)
+    {
+        var me = await GetAsync<UserDto>("users/me?fields=id,login,fullName", ct);
+        _currentLogin ??= me.Login ?? "";
+        return new UserInfo(me.Login ?? "", me.FullName ?? me.Login ?? "");
+    }
+
+    public async Task<IReadOnlyList<UserInfo>> GetUsersAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var users = await GetAsync<List<UserDto>>(
+                "users?fields=login,fullName,banned&$top=200",
+                ct
+            );
+            return users
+                .Where(u => !u.Banned && !string.IsNullOrWhiteSpace(u.Login))
+                .Select(u => new UserInfo(u.Login!, u.FullName ?? u.Login!))
+                .OrderBy(u => u.FullName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (YouTrackApiException)
+        {
+            // Listing users is a permission the token may not have — dropdown degrades to text input.
+            return Array.Empty<UserInfo>();
+        }
+    }
+
+    /// <summary>Login as it appears in a YouTrack query: null → "me"; brace-wrap multi-word values.</summary>
+    private static string DevQueryValue(string? devLogin) =>
+        string.IsNullOrWhiteSpace(devLogin) ? "me"
+        : devLogin.Contains(' ') ? "{" + devLogin + "}"
+        : devLogin;
 
     public async Task<IReadOnlyList<WorkItemType>> GetWorkItemTypesAsync(
         CancellationToken ct = default

@@ -5,10 +5,15 @@ namespace YouTracker.Core.Abstractions;
 /// <summary>Read port for issues (implemented by the YouTrack module; replaceable).</summary>
 public interface IIssueReader
 {
-    Task<IReadOnlyList<Issue>> GetMyOpenIssuesAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Open issues the dev is involved in (assignee OR work author).
+    /// <paramref name="devLogin"/> null means the current user.
+    /// </summary>
+    Task<IReadOnlyList<Issue>> GetOpenIssuesAsync(string? devLogin, CancellationToken ct = default);
 
-    /// <summary>Issues the current user touched (updated/commented) in the given period — gap-fill candidates.</summary>
-    Task<IReadOnlyList<Issue>> GetMyRecentlyActiveIssuesAsync(
+    /// <summary>Issues the dev touched (updated) in the given period — gap-fill candidates.</summary>
+    Task<IReadOnlyList<Issue>> GetRecentlyActiveIssuesAsync(
+        string? devLogin,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default
@@ -18,7 +23,9 @@ public interface IIssueReader
 /// <summary>Read port for work items (time bookings) and their types.</summary>
 public interface IWorkItemReader
 {
-    Task<IReadOnlyList<WorkItem>> GetMyWorkItemsAsync(
+    /// <summary>Work items authored by the dev (<paramref name="devLogin"/> null = current user).</summary>
+    Task<IReadOnlyList<WorkItem>> GetWorkItemsAsync(
+        string? devLogin,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default
@@ -26,6 +33,15 @@ public interface IWorkItemReader
 
     /// <summary>Available work item types; empty when the instance does not expose them to this user.</summary>
     Task<IReadOnlyList<WorkItemType>> GetWorkItemTypesAsync(CancellationToken ct = default);
+}
+
+/// <summary>Read port for the tracker's user directory.</summary>
+public interface IUserDirectory
+{
+    Task<UserInfo> GetCurrentUserAsync(CancellationToken ct = default);
+
+    /// <summary>All selectable users; empty when the token lacks permission to list users.</summary>
+    Task<IReadOnlyList<UserInfo>> GetUsersAsync(CancellationToken ct = default);
 }
 
 /// <summary>The only port that writes to the tracker. AI query handlers never receive this.</summary>
@@ -68,6 +84,25 @@ public interface ITimerStore
     TimerState? Load();
     void Save(TimerState state);
     void Clear();
+}
+
+/// <summary>A saved standard booking (recurring meetings etc.) for one-click logging.</summary>
+public sealed record BookingPreset(
+    string Id,
+    string Name,
+    string IssueId,
+    string IssueSummary,
+    int Minutes,
+    string? TypeId,
+    string? TypeName,
+    string? Comment
+);
+
+/// <summary>Persistence port for booking presets (local file; replaceable).</summary>
+public interface IPresetStore
+{
+    IReadOnlyList<BookingPreset> Load();
+    void Save(IReadOnlyList<BookingPreset> presets);
 }
 
 /// <summary>Port for loading app configuration.</summary>

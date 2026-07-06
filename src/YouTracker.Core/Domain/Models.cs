@@ -26,6 +26,8 @@ public sealed record WorkItem(
 
 public sealed record WorkItemType(string Id, string Name);
 
+public sealed record UserInfo(string Login, string FullName);
+
 public static class DurationFormat
 {
     /// <summary>Formats minutes as e.g. "6h 30m" (display only; not YouTrack server presentation).</summary>

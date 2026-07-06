@@ -14,7 +14,7 @@ public sealed class GetMyOpenIssuesQueryHandler(IIssueReader issues, AppConfig c
         CancellationToken ct = default
     )
     {
-        var open = await issues.GetMyOpenIssuesAsync(ct).ConfigureAwait(false);
+        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         return
         [
             .. open.Select(i => new TaskListItem(
@@ -45,7 +45,7 @@ public sealed class GetTimeOverviewQueryHandler(
     )
     {
         var items = await workItems
-            .GetMyWorkItemsAsync(query.From, query.To, ct)
+            .GetWorkItemsAsync(query.Dev, query.From, query.To, ct)
             .ConfigureAwait(false);
         return MetricsCalculator.BuildOverview(
             items,
@@ -66,6 +66,22 @@ public sealed class GetWorkItemTypesQueryHandler(IWorkItemReader workItems)
     ) => workItems.GetWorkItemTypesAsync(ct);
 }
 
+public sealed class GetUsersQueryHandler(IUserDirectory users)
+    : IQueryHandler<GetUsersQuery, IReadOnlyList<UserInfo>>
+{
+    public Task<IReadOnlyList<UserInfo>> HandleAsync(
+        GetUsersQuery query,
+        CancellationToken ct = default
+    ) => users.GetUsersAsync(ct);
+}
+
+public sealed class GetCurrentUserQueryHandler(IUserDirectory users)
+    : IQueryHandler<GetCurrentUserQuery, UserInfo>
+{
+    public Task<UserInfo> HandleAsync(GetCurrentUserQuery query, CancellationToken ct = default) =>
+        users.GetCurrentUserAsync(ct);
+}
+
 public sealed class GetTimerStateQueryHandler(ITimerStore timerStore)
     : IQueryHandler<GetTimerStateQuery, TimerState?>
 {
@@ -73,6 +89,15 @@ public sealed class GetTimerStateQueryHandler(ITimerStore timerStore)
         GetTimerStateQuery query,
         CancellationToken ct = default
     ) => Task.FromResult(timerStore.Load());
+}
+
+public sealed class GetPresetsQueryHandler(IPresetStore presets)
+    : IQueryHandler<GetPresetsQuery, IReadOnlyList<BookingPreset>>
+{
+    public Task<IReadOnlyList<BookingPreset>> HandleAsync(
+        GetPresetsQuery query,
+        CancellationToken ct = default
+    ) => Task.FromResult(presets.Load());
 }
 
 public sealed class GetHygieneFindingsQueryHandler(
@@ -88,9 +113,9 @@ public sealed class GetHygieneFindingsQueryHandler(
     )
     {
         var today = config.Today(time);
-        var open = await issues.GetMyOpenIssuesAsync(ct).ConfigureAwait(false);
+        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         var recent = await workItems
-            .GetMyWorkItemsAsync(today.AddDays(-14), today, ct)
+            .GetWorkItemsAsync(query.Dev, today.AddDays(-14), today, ct)
             .ConfigureAwait(false);
         return MetricsCalculator.Hygiene(open, recent, [.. config.Workday.InProgressStates], today);
     }

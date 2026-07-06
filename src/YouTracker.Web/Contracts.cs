@@ -19,6 +19,17 @@ public sealed record CommitWorkLogRequest(
     string? DefaultTypeId = null
 );
 
-public sealed record AiDraftRequest(string FreeText, DateOnly Date);
+public sealed record AiDraftRequest(string FreeText, DateOnly Date, string? Dev = null);
 
-public sealed record PeriodRequest(DateOnly From, DateOnly To);
+public sealed record PeriodRequest(DateOnly From, DateOnly To, string? Dev = null);
+
+public sealed record SavePresetRequest(
+    string? Id,
+    string Name,
+    string IssueId,
+    string IssueSummary,
+    int Minutes,
+    string? TypeId = null,
+    string? TypeName = null,
+    string? Comment = null
+);

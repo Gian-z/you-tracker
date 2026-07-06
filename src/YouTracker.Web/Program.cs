@@ -97,20 +97,26 @@ var api = app.MapGroup("/api");
 
 api.MapGet(
     "/meta",
-    (AppConfig cfg) =>
+    async (AppConfig cfg, IDispatcher dispatcher, CancellationToken ct) =>
         new
         {
             targetMinutesPerWorkday = cfg.TargetMinutesPerWorkday,
             timezone = cfg.Workday.Timezone,
             webBaseUrl = cfg.YouTrack.WebBaseUrl,
             aiProvider = cfg.Anthropic.HasApiKey ? "anthropic" : "claude-cli",
+            currentUser = await dispatcher.QueryAsync(new GetCurrentUserQuery(), ct),
         }
 );
 
 api.MapGet(
+    "/users",
+    (IDispatcher dispatcher, CancellationToken ct) => dispatcher.QueryAsync(new GetUsersQuery(), ct)
+);
+
+api.MapGet(
     "/issues",
-    (IDispatcher dispatcher, CancellationToken ct, bool refresh = false) =>
-        dispatcher.QueryAsync(new GetMyOpenIssuesQuery(BypassCache: refresh), ct)
+    (IDispatcher dispatcher, CancellationToken ct, bool refresh = false, string? dev = null) =>
+        dispatcher.QueryAsync(new GetMyOpenIssuesQuery(BypassCache: refresh, Dev: Clean(dev)), ct)
 );
 
 api.MapGet(
@@ -120,8 +126,13 @@ api.MapGet(
         DateOnly from,
         DateOnly to,
         CancellationToken ct,
-        bool refresh = false
-    ) => dispatcher.QueryAsync(new GetTimeOverviewQuery(from, to, BypassCache: refresh), ct)
+        bool refresh = false,
+        string? dev = null
+    ) =>
+        dispatcher.QueryAsync(
+            new GetTimeOverviewQuery(from, to, BypassCache: refresh, Dev: Clean(dev)),
+            ct
+        )
 );
 
 api.MapGet(
@@ -182,13 +193,19 @@ api.MapPost(
 api.MapPost(
     "/ai/draft",
     (AiDraftRequest request, IDispatcher dispatcher, CancellationToken ct) =>
-        dispatcher.QueryAsync(new DraftWorkLogQuery(request.FreeText, request.Date), ct)
+        dispatcher.QueryAsync(
+            new DraftWorkLogQuery(request.FreeText, request.Date, Clean(request.Dev)),
+            ct
+        )
 );
 
 api.MapPost(
     "/ai/gapfills",
     (PeriodRequest request, IDispatcher dispatcher, CancellationToken ct) =>
-        dispatcher.QueryAsync(new SuggestGapFillsQuery(request.From, request.To), ct)
+        dispatcher.QueryAsync(
+            new SuggestGapFillsQuery(request.From, request.To, Clean(request.Dev)),
+            ct
+        )
 );
 
 api.MapPost(
@@ -197,7 +214,7 @@ api.MapPost(
         new
         {
             text = await dispatcher.QueryAsync(
-                new SummarizePeriodQuery(request.From, request.To),
+                new SummarizePeriodQuery(request.From, request.To, Clean(request.Dev)),
                 ct
             ),
         }
@@ -205,9 +222,49 @@ api.MapPost(
 
 api.MapPost(
     "/ai/triage",
+    (IDispatcher dispatcher, CancellationToken ct, string? dev = null) =>
+        dispatcher.QueryAsync(new TriageIssuesQuery(Clean(dev)), ct)
+);
+
+// --- Booking presets (standard recurring bookings, stored locally) ---
+
+api.MapGet(
+    "/presets",
     (IDispatcher dispatcher, CancellationToken ct) =>
-        dispatcher.QueryAsync(new TriageIssuesQuery(), ct)
+        dispatcher.QueryAsync(new GetPresetsQuery(), ct)
+);
+
+api.MapPost(
+    "/presets",
+    (SavePresetRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.SendAsync(
+            new SavePresetCommand(
+                new BookingPreset(
+                    request.Id ?? "",
+                    request.Name,
+                    request.IssueId,
+                    request.IssueSummary,
+                    request.Minutes,
+                    request.TypeId,
+                    request.TypeName,
+                    request.Comment
+                )
+            ),
+            ct
+        )
+);
+
+api.MapDelete(
+    "/presets/{id}",
+    async (string id, IDispatcher dispatcher, CancellationToken ct) =>
+    {
+        var removed = await dispatcher.SendAsync(new DeletePresetCommand(id), ct);
+        return removed ? Results.NoContent() : Results.NotFound(new { error = "Unknown preset." });
+    }
 );
 
 app.Run();
 return 0;
+
+// Query/body dev values: empty or whitespace means "current user".
+static string? Clean(string? dev) => string.IsNullOrWhiteSpace(dev) ? null : dev.Trim();
