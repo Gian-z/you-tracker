@@ -6,6 +6,7 @@ using YouTracker.Core.Config;
 using YouTracker.Core.DependencyInjection;
 using YouTracker.Core.Domain;
 using YouTracker.Infrastructure.Anthropic.DependencyInjection;
+using YouTracker.Infrastructure.ClaudeCli.DependencyInjection;
 using YouTracker.Infrastructure.Storage.DependencyInjection;
 using YouTracker.Infrastructure.YouTrack.DependencyInjection;
 
@@ -38,12 +39,18 @@ internal static class Program
         services.AddYouTrackerCore();
         services.AddYouTrackerYouTrack();
         services.AddYouTrackerStorage();
-        services.AddYouTrackerAnthropic();
+        // AI provider: real API key → Anthropic SDK; otherwise the local Claude Code CLI.
+        if (config.Anthropic.HasApiKey)
+            services.AddYouTrackerAnthropic();
+        else
+            services.AddYouTrackerClaudeCli();
         services.AddSingleton(config);
         using var provider = services.BuildServiceProvider();
 
         if (args.Contains("--check"))
             return RunCheck(provider, config);
+        if (args.Contains("--check-ai"))
+            return RunCheckAi(provider, config);
 
         var app = new App(
             provider.GetRequiredService<IDispatcher>(),
@@ -52,6 +59,36 @@ internal static class Program
         );
         app.Run();
         return 0;
+    }
+
+    /// <summary>Non-interactive AI smoke test: one trivial completion through the active provider.</summary>
+    private static int RunCheckAi(IServiceProvider provider, AppConfig config)
+    {
+        try
+        {
+            var ai = provider.GetRequiredService<IAiProvider>();
+            Console.WriteLine(
+                $"AI provider: {ai.GetType().Name} "
+                    + (
+                        config.Anthropic.HasApiKey
+                            ? "(Anthropic API)"
+                            : "(Claude Code CLI, no API key)"
+                    )
+            );
+            var reply = ai.CompleteTextAsync(
+                    "You are a connectivity smoke test.",
+                    "Reply with exactly: OK"
+                )
+                .GetAwaiter()
+                .GetResult();
+            Console.WriteLine($"Response: {reply.Trim()}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 2;
+        }
     }
 
     /// <summary>Non-interactive smoke test: query issues + current week overview, print, exit.</summary>

@@ -66,9 +66,11 @@ public sealed class JsonConfigStore : IConfigStore
                 Require(dto.YouTrack?.WebBaseUrl, "youTrack.webBaseUrl"),
                 Require(token, "youTrack.token (or the YOUTRACK_TOKEN environment variable)")
             ),
+            // apiKey is optional: without one, the host uses the Claude Code CLI provider.
             new AnthropicConfig(
-                Require(apiKey, "anthropic.apiKey (or the ANTHROPIC_API_KEY environment variable)"),
-                FirstNonEmpty(dto.Anthropic?.Model, null) ?? DefaultModel
+                apiKey ?? string.Empty,
+                FirstNonEmpty(dto.Anthropic?.Model, null) ?? DefaultModel,
+                FirstNonEmpty(dto.Anthropic?.CliCommand, null) ?? "claude"
             ),
             new WorkdayConfig(
                 dto.Workday?.TargetHours ?? DefaultTargetHours,
@@ -84,7 +86,7 @@ public sealed class JsonConfigStore : IConfigStore
         """
             {
               "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:..." },
-              "anthropic": { "apiKey": "sk-ant-...", "model": "claude-opus-4-8" },
+              "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
               "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit"] }
             }
             """;
@@ -119,6 +121,7 @@ public sealed class JsonConfigStore : IConfigStore
     {
         public string? ApiKey { get; set; }
         public string? Model { get; set; }
+        public string? CliCommand { get; set; }
     }
 
     private sealed class WorkdayDto

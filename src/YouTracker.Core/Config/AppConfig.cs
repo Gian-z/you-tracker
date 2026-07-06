@@ -2,7 +2,17 @@ namespace YouTracker.Core.Config;
 
 public sealed record YouTrackConfig(string BaseUrl, string WebBaseUrl, string Token);
 
-public sealed record AnthropicConfig(string ApiKey, string Model);
+public sealed record AnthropicConfig(string ApiKey, string Model, string CliCommand = "claude")
+{
+    /// <summary>
+    /// True when a real Anthropic API key is configured (not empty and not a template
+    /// placeholder). When false, hosts fall back to the Claude Code CLI provider.
+    /// </summary>
+    public bool HasApiKey =>
+        !string.IsNullOrWhiteSpace(ApiKey)
+        && !ApiKey.Contains("PASTE", StringComparison.OrdinalIgnoreCase)
+        && ApiKey != "sk-ant-...";
+}
 
 public sealed record WorkdayConfig(
     double TargetHours,

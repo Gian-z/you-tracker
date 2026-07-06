@@ -9,8 +9,9 @@ Personal YouTrack time-tracking companion: a keyboard-first terminal UI with AI 
 #    %APPDATA%\you-tracker\config.json — YouTrack permanent token + Anthropic API key
 #    Env vars YOUTRACK_TOKEN / ANTHROPIC_API_KEY override the file values.
 
-# 2. Smoke test (read-only: open issues + this week's bookings)
-dotnet run --project src/YouTracker.Tui -- --check
+# 2. Smoke tests
+dotnet run --project src/YouTracker.Tui -- --check     # read-only: open issues + this week's bookings
+dotnet run --project src/YouTracker.Tui -- --check-ai  # one trivial completion through the active AI provider
 
 # 3. Run the TUI
 dotnet run --project src/YouTracker.Tui
@@ -29,6 +30,15 @@ dotnet run --project src/YouTracker.Tui
 
 AI actions (F3) only ever **propose** work items. Nothing is written to YouTrack until you check the drafts and press Commit in the review dialog.
 
+## AI provider selection (hybrid)
+
+The composition root picks the AI backend from `anthropic.apiKey` in the config:
+
+- **Empty / placeholder key** → **Claude Code CLI** (`claude -p --output-format json`, headless): uses your existing Claude Code login, no API key needed. Override the executable with `anthropic.cliCommand` (default `"claude"`).
+- **Real key** → the official Anthropic SDK (`anthropic.model`, default `claude-opus-4-8`).
+
+Both implement the same `IAiProvider` port; switching is zero code changes.
+
 ## Architecture
 
 CQRS-light with ports & adapters. `YouTracker.Core` holds all abstractions, application handlers (queries/commands via `IDispatcher` with a caching decorator), domain metrics (Fokus-Score, gaps, hygiene), and the AI prompt/parsing layer. Each external system is a replaceable module implementing Core ports:
@@ -38,6 +48,7 @@ src/
 ├── YouTracker.Core/                    # ports, CQRS handlers, metrics, AI prompts/parsing
 ├── YouTracker.Infrastructure.YouTrack/ # REST adapter → IIssueReader/IWorkItemReader/IWorkItemWriter
 ├── YouTracker.Infrastructure.Anthropic/# Claude API → IAiProvider (official Anthropic SDK)
+├── YouTracker.Infrastructure.ClaudeCli/# Claude Code CLI (headless) → IAiProvider, no API key
 ├── YouTracker.Infrastructure.Storage/  # %APPDATA% JSON files → ITimerStore/IConfigStore
 └── YouTracker.Tui/                     # Terminal.Gui v1 host; Program.cs is the only composition root
 tests/YouTracker.Core.Tests/
