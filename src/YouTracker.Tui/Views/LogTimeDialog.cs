@@ -16,7 +16,8 @@ public static class LogTimeDialog
         string issueId,
         string issueSummary,
         DateOnly defaultDate,
-        int? prefillMinutes
+        int? prefillMinutes,
+        Func<Task>? afterSave = null
     )
     {
         UiRunner.Run(
@@ -32,7 +33,15 @@ public static class LogTimeDialog
                     types = Array.Empty<WorkItemType>();
                 }
                 Application.MainLoop?.Invoke(() =>
-                    Open(dispatcher, issueId, issueSummary, defaultDate, prefillMinutes, types)
+                    Open(
+                        dispatcher,
+                        issueId,
+                        issueSummary,
+                        defaultDate,
+                        prefillMinutes,
+                        types,
+                        afterSave
+                    )
                 );
             },
             "Loading work item types failed"
@@ -45,7 +54,8 @@ public static class LogTimeDialog
         string issueSummary,
         DateOnly defaultDate,
         int? prefillMinutes,
-        IReadOnlyList<WorkItemType> types
+        IReadOnlyList<WorkItemType> types,
+        Func<Task>? afterSave
     )
     {
         var dialog = new Dialog("Log time", 70, 18);
@@ -98,6 +108,7 @@ public static class LogTimeDialog
         };
 
         var ok = new Button("Ok", is_default: true);
+        var cancel = new Button("Cancel");
         ok.Clicked += () =>
         {
             if (!DurationFormat.TryParseMinutes(durationField.Text.ToString(), out var parsed))
@@ -116,8 +127,12 @@ public static class LogTimeDialog
                     : null;
             var comment = commentField.Text.ToString();
             error.Text = "Saving…";
-            UiRunner.Run(
-                async () =>
+            // A second Enter during the POST would book the work item twice.
+            ok.Enabled = false;
+            cancel.Enabled = false;
+            UiRunner.Run(async () =>
+            {
+                try
                 {
                     await dispatcher.SendAsync(
                         new CreateWorkItemCommand(
@@ -128,15 +143,24 @@ public static class LogTimeDialog
                             string.IsNullOrWhiteSpace(comment) ? null : comment
                         )
                     );
+                    if (afterSave is not null)
+                        await afterSave();
                     Application.MainLoop?.Invoke(() =>
                     {
                         Application.RequestStop();
                     });
-                },
-                "Create work item failed"
-            );
+                }
+                catch (Exception ex)
+                {
+                    Application.MainLoop?.Invoke(() =>
+                    {
+                        error.Text = $"Create work item failed: {ex.Message}";
+                        ok.Enabled = true;
+                        cancel.Enabled = true;
+                    });
+                }
+            });
         };
-        var cancel = new Button("Cancel");
         cancel.Clicked += () => Application.RequestStop();
 
         dialog.Add(

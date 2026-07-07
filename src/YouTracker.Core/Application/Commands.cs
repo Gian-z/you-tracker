@@ -20,8 +20,15 @@ public sealed record CommitWorkLogDraftsCommand(
 
 public sealed record StartTimerCommand(string IssueId, string IssueSummary) : ICommand<TimerState>;
 
-/// <summary>Stops the running timer and returns the elapsed prefill for the log dialog. Does not log time itself.</summary>
+/// <summary>
+/// Returns the elapsed prefill for the log dialog without clearing the timer — the elapsed
+/// time must survive a cancelled/failed booking. Clearing happens via DiscardTimerCommand
+/// once the booking is confirmed (or the user explicitly discards).
+/// </summary>
 public sealed record StopTimerCommand : ICommand<TimerStopResult?>;
+
+/// <summary>Clears the persisted timer. Sent after a successful stop-and-log booking or an explicit discard.</summary>
+public sealed record DiscardTimerCommand : ICommand<bool>;
 
 /// <summary>Creates or updates a booking preset (matched by Id; empty Id = create new).</summary>
 public sealed record SavePresetCommand(BookingPreset Preset) : ICommand<BookingPreset>;

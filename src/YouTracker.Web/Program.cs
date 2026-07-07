@@ -183,6 +183,13 @@ api.MapPost(
     }
 );
 
+// Clears the persisted timer after the stop-and-log booking was confirmed (or explicitly discarded).
+api.MapPost(
+    "/timer/discard",
+    (IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.SendAsync(new DiscardTimerCommand(), ct)
+);
+
 api.MapPost(
     "/worklog",
     (CreateWorkLogRequest request, IDispatcher dispatcher, CancellationToken ct) =>

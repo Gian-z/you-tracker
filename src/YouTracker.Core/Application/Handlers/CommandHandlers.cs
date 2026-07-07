@@ -111,12 +111,8 @@ public sealed class StartTimerCommandHandler(ITimerStore store, TimeProvider tim
     }
 }
 
-public sealed class StopTimerCommandHandler(
-    ITimerStore store,
-    TimeProvider time,
-    AppConfig config,
-    IEventBus events
-) : ICommandHandler<StopTimerCommand, TimerStopResult?>
+public sealed class StopTimerCommandHandler(ITimerStore store, TimeProvider time, AppConfig config)
+    : ICommandHandler<StopTimerCommand, TimerStopResult?>
 {
     public Task<TimerStopResult?> HandleAsync(
         StopTimerCommand command,
@@ -125,14 +121,33 @@ public sealed class StopTimerCommandHandler(
     {
         if (store.Load() is not { } running)
             return Task.FromResult<TimerStopResult?>(null);
+        // Deliberately no Clear(): a cancelled/failed booking must not lose the elapsed time.
+        var elapsed = Math.Max(
+            1,
+            (int)Math.Round((time.GetUtcNow() - running.StartedUtc).TotalMinutes)
+        );
+        return Task.FromResult<TimerStopResult?>(
+            new TimerStopResult(running.IssueId, running.IssueSummary, elapsed, config.Today(time))
+        );
+    }
+}
+
+public sealed class DiscardTimerCommandHandler(
+    ITimerStore store,
+    TimeProvider time,
+    IEventBus events
+) : ICommandHandler<DiscardTimerCommand, bool>
+{
+    public Task<bool> HandleAsync(DiscardTimerCommand command, CancellationToken ct = default)
+    {
+        if (store.Load() is not { } running)
+            return Task.FromResult(false);
         store.Clear();
         var elapsed = Math.Max(
             1,
             (int)Math.Round((time.GetUtcNow() - running.StartedUtc).TotalMinutes)
         );
         events.Publish(new TimerStopped(running.IssueId, running.IssueSummary, elapsed));
-        return Task.FromResult<TimerStopResult?>(
-            new TimerStopResult(running.IssueId, running.IssueSummary, elapsed, config.Today(time))
-        );
+        return Task.FromResult(true);
     }
 }

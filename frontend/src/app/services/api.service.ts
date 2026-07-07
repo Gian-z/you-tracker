@@ -118,6 +118,10 @@ export class ApiService {
     return this.post<TimerStopResult | null>('/api/timer/stop', {});
   }
 
+  discardTimer(): Promise<boolean> {
+    return this.post<boolean>('/api/timer/discard', {});
+  }
+
   createWorklog(request: WorkLogRequest): Promise<WorkItem> {
     return this.post<WorkItem>('/api/worklog', request);
   }

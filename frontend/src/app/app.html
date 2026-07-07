@@ -63,6 +63,7 @@
     [issueSummary]="r.issueSummary"
     [initialMinutes]="r.elapsedMinutes"
     [initialDate]="r.date"
+    (saved)="onStopLogSaved()"
     (closed)="stopResult.set(null)"
   />
 }

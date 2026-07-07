@@ -46,4 +46,13 @@ export class App {
       this.stopping.set(false);
     }
   }
+
+  /** Booking confirmed — only now is the persisted timer cleared. Cancel keeps it running. */
+  protected async onStopLogSaved(): Promise<void> {
+    try {
+      await this.timer.discard();
+    } catch (err) {
+      this.timerError.set((err as Error).message);
+    }
+  }
 }

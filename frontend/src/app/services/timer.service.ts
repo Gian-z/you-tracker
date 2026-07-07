@@ -39,10 +39,14 @@ export class TimerService {
     this.state.set(state);
   }
 
+  /** Returns the elapsed prefill; the timer keeps running until discard() confirms the booking. */
   async stop(): Promise<TimerStopResult | null> {
-    const result = await this.api.stopTimer();
+    return this.api.stopTimer();
+  }
+
+  async discard(): Promise<void> {
+    await this.api.discardTimer();
     this.state.set(null);
-    return result;
   }
 }
 

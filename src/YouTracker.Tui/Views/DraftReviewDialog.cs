@@ -79,6 +79,7 @@ public static class DraftReviewDialog
         );
 
         var commit = new Button("Commit", is_default: true);
+        var cancel = new Button("Cancel");
         commit.Clicked += () =>
         {
             var selected = drafts.Where((_, i) => isChecked[i]).ToList();
@@ -87,8 +88,12 @@ public static class DraftReviewDialog
                 MessageBox.Query("Commit", "No drafts checked.", "Ok");
                 return;
             }
-            UiRunner.Run(
-                async () =>
+            // A second Enter during the commit would book every checked draft twice.
+            commit.Enabled = false;
+            cancel.Enabled = false;
+            UiRunner.Run(async () =>
+            {
+                try
                 {
                     var commitResult = await dispatcher.SendAsync(
                         new CommitWorkLogDraftsCommand(selected, null)
@@ -101,11 +106,18 @@ public static class DraftReviewDialog
                         MessageBox.Query("Commit result", message, "Ok");
                         Application.RequestStop();
                     });
-                },
-                "Commit failed"
-            );
+                }
+                catch (Exception ex)
+                {
+                    Application.MainLoop?.Invoke(() =>
+                    {
+                        MessageBox.ErrorQuery("Commit failed", ex.Message, "Ok");
+                        commit.Enabled = true;
+                        cancel.Enabled = true;
+                    });
+                }
+            });
         };
-        var cancel = new Button("Cancel");
         cancel.Clicked += () => Application.RequestStop();
 
         dialog.Add(table, unmatchedFrame);

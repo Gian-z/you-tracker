@@ -82,6 +82,10 @@ public static class ServiceCollectionExtensions
             StopTimerCommandHandler
         >();
         services.AddTransient<
+            ICommandHandler<DiscardTimerCommand, bool>,
+            DiscardTimerCommandHandler
+        >();
+        services.AddTransient<
             ICommandHandler<SavePresetCommand, BookingPreset>,
             SavePresetCommandHandler
         >();

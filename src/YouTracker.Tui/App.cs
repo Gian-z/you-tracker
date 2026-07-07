@@ -165,12 +165,16 @@ public sealed class App
                 {
                     if (result is null)
                         return;
+                    // The timer store is only cleared after the booking succeeded — cancelling
+                    // the dialog keeps the timer (and its elapsed time) running.
                     LogTimeDialog.Show(
                         _dispatcher,
                         result.IssueId,
                         result.IssueSummary,
                         result.Date,
-                        Math.Max(1, result.ElapsedMinutes)
+                        Math.Max(1, result.ElapsedMinutes),
+                        afterSave: async () =>
+                            await _dispatcher.SendAsync(new DiscardTimerCommand())
                     );
                 });
             },
