@@ -159,6 +159,38 @@
   color: var(--text);
 }
 
+/* --- inline booking (ticket-table rows) --- */
+
+.inline-book-cell {
+  min-width: 7rem;
+}
+
+.inline-book-input {
+  width: 6.5rem;
+  padding: 0.15rem 0.45rem;
+  font-size: var(--fs-s);
+}
+
+.inline-book-input.invalid {
+  border-color: var(--danger);
+  outline-color: var(--danger);
+}
+
+.inline-book-error {
+  display: block;
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  max-width: 12rem;
+  white-space: normal;
+}
+
+.inline-book-success {
+  color: var(--ok);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* --- badges, banners, spinner --- */
 
 .badge {

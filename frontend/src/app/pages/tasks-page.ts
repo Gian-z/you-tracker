@@ -1,15 +1,18 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { InlineBook } from '../components/inline-book';
 import { LogTimeDialog } from '../dialogs/log-time-dialog';
 import { relativeTime } from '../format';
 import { TaskListItem } from '../models';
 import { ApiService } from '../services/api.service';
+import { BookingService } from '../services/booking.service';
 import { DevService } from '../services/dev.service';
+import { RefreshService } from '../services/refresh.service';
 import { TimerService } from '../services/timer.service';
 
 @Component({
   selector: 'app-tasks-page',
-  imports: [FormsModule, LogTimeDialog],
+  imports: [FormsModule, LogTimeDialog, InlineBook],
   template: `
     <div class="page">
       <div class="toolbar">
@@ -46,6 +49,9 @@ import { TimerService } from '../services/timer.service';
                 <th>Est</th>
                 <th>Spent</th>
                 <th>Updated</th>
+                @if (dev.isSelf()) {
+                  <th>Buchen</th>
+                }
                 <th></th>
               </tr>
             </thead>
@@ -54,6 +60,9 @@ import { TimerService } from '../services/timer.service';
                 <tr>
                   <td class="nowrap">
                     <a [href]="t.webUrl" target="_blank" rel="noopener">{{ t.issueId }}</a>
+                    @if (booking.isFeature(t)) {
+                      <span class="redirect-badge" [title]="redirectHint(t)">↪</span>
+                    }
                   </td>
                   <td class="summary-cell">{{ t.summary }}</td>
                   <td>{{ t.type ?? '–' }}</td>
@@ -62,6 +71,11 @@ import { TimerService } from '../services/timer.service';
                   <td class="nowrap">{{ t.estimate ?? '–' }}</td>
                   <td class="nowrap">{{ t.spent ?? '–' }}</td>
                   <td class="nowrap muted">{{ rel(t.updated) }}</td>
+                  @if (dev.isSelf()) {
+                    <td class="nowrap inline-book-cell">
+                      <app-inline-book [issue]="t" />
+                    </td>
+                  }
                   <td class="nowrap row-actions">
                     @if (dev.isSelf()) {
                       <button type="button" class="icon" title="Start timer" (click)="start(t)">▶</button>
@@ -73,7 +87,7 @@ import { TimerService } from '../services/timer.service';
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="9" class="muted empty-cell">
+                  <td colspan="10" class="muted empty-cell">
                     @if (issues().length === 0) {
                       No issues found.
                     } @else {
@@ -100,7 +114,9 @@ import { TimerService } from '../services/timer.service';
 export class TasksPage {
   private readonly api = inject(ApiService);
   private readonly timer = inject(TimerService);
+  private readonly refresh = inject(RefreshService);
   protected readonly dev = inject(DevService);
+  protected readonly booking = inject(BookingService);
 
   readonly issues = signal<TaskListItem[]>([]);
   readonly loading = signal(false);
@@ -122,22 +138,47 @@ export class TasksPage {
   });
 
   constructor() {
-    // Reloads on init and whenever the selected dev changes.
+    // Reloads on init, on dev change and after any booking (Spent column refresh —
+    // the server-side issues: cache eviction makes even a non-refresh reload fresh).
     effect(() => {
       this.dev.devParam();
-      void this.load(false);
+      this.refresh.worklogVersion();
+      untracked(() => void this.load(false));
     });
   }
 
   async load(refresh: boolean): Promise<void> {
-    this.loading.set(true);
+    // Spinner only on first load — background reloads (after a booking) must not
+    // tear down the table and its inline-book success chips.
+    if (this.issues().length === 0) {
+      this.loading.set(true);
+    }
     this.error.set(null);
     try {
-      this.issues.set(await this.api.getIssues(refresh, this.dev.devParam()));
+      const issues = await this.api.getIssues(refresh, this.dev.devParam());
+      this.issues.set(issues);
+      this.booking.prefetch(issues);
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  redirectHint(item: TaskListItem): string {
+    const target = this.booking.resolutionFor(item.issueId);
+    if (!target) {
+      return 'Feature – Buchungen landen auf der Task-Teilaufgabe';
+    }
+    switch (target.kind) {
+      case 'redirected':
+        return `Buchungen landen auf ${target.targetIssueId} – ${target.targetSummary}`;
+      case 'ambiguous':
+        return `${target.candidates.length} Task-Teilaufgaben – beim Buchen wählen`;
+      case 'noTask':
+        return 'Feature ohne Task-Teilaufgabe!';
+      default:
+        return '';
     }
   }
 

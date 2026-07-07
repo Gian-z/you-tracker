@@ -1,5 +1,6 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { InlineBook } from '../components/inline-book';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
 import { LogTimeDialog } from '../dialogs/log-time-dialog';
 import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-dialog';
@@ -29,7 +30,7 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
 /** Single-page overview: KPIs, my sprint tasks, status distribution, sprint pool, today's bookings, AI. */
 @Component({
   selector: 'app-dashboard-page',
-  imports: [FormsModule, DraftReviewDialog, LogTimeDialog, SubtaskPickerDialog],
+  imports: [FormsModule, DraftReviewDialog, LogTimeDialog, SubtaskPickerDialog, InlineBook],
   template: `
     <div class="page dashboard">
       @if (error(); as err) {
@@ -93,6 +94,11 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
                     </td>
                     <td class="nowrap">{{ t.state ?? '–' }}</td>
                     <td class="summary-cell">{{ t.summary }}</td>
+                    @if (dev.isSelf()) {
+                      <td class="nowrap inline-book-cell">
+                        <app-inline-book [issue]="t" />
+                      </td>
+                    }
                     <td class="nowrap row-actions">
                       @if (dev.isSelf()) {
                         <button type="button" class="icon" title="Start timer" (click)="start(t)">▶</button>
@@ -300,7 +306,11 @@ export class DashboardPage {
     const monday = startOfWeek(new Date());
     const from = toIsoDate(monday);
     const to = toIsoDate(addDays(monday, 6));
-    this.loading.set(true);
+    // Spinner only on first load — background reloads (after a booking) must not
+    // tear down the table and its inline-book success chips.
+    if (this.issues().length === 0) {
+      this.loading.set(true);
+    }
     this.error.set(null);
     try {
       const [issues, weekOverview, poolTasks, presets] = await Promise.all([
