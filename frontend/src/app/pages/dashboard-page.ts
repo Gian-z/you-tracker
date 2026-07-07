@@ -147,6 +147,46 @@ const TOP_TICKET_COUNT = 5;
             <div class="tile-sub muted">heute · Ø Woche</div>
           }
         </div>
+        <div class="tile">
+          <div class="tile-caption">
+            Sprint @if (currentSprint(); as s) { {{ s.name }} }
+          </div>
+          @if (sprintDays(); as d) {
+            <div class="tile-value">
+              Tag {{ d.done }}<span class="muted hero-target">/ {{ d.total }}</span>
+            </div>
+            <div class="meter hero-meter">
+              <span class="meter-fill" [style.width.%]="(d.done / d.total) * 100"></span>
+            </div>
+            <div class="tile-sub muted">{{ d.remaining }} {{ d.remaining === 1 ? 'Tag' : 'Tage' }} übrig</div>
+          } @else {
+            <div class="tile-sub muted">Kein Sprint in team.json.</div>
+          }
+          @if (effortTotals(); as e) {
+            <div class="sprint-effort small">
+              <span [class.over-effort]="e.spent > e.estimate">
+                Ist {{ dur(e.spent) }} <span class="muted">/ Soll {{ dur(e.estimate) }}</span>
+              </span>
+            </div>
+            <div class="meter">
+              <span
+                class="meter-fill"
+                [class.ok]="e.spent <= e.estimate"
+                [class.warn]="e.spent > e.estimate"
+                [style.width.%]="Math.min(100, (e.spent / e.estimate) * 100)"
+              ></span>
+            </div>
+          }
+          @if (ticketStates().length > 0) {
+            <div class="state-chips sprint-states">
+              @for (s of ticketStates(); track s.state) {
+                <a routerLink="/tickets" class="state-chip">
+                  {{ s.state }} <span class="muted">{{ s.count }}</span>
+                </a>
+              }
+            </div>
+          }
+        </div>
       </div>
 
       <!-- Row 2: quick booking -->
@@ -188,53 +228,8 @@ const TOP_TICKET_COUNT = 5;
         </section>
       }
 
-      <!-- Row 3: today's bookings | top tickets | sprint progress -->
+      <!-- Row 3: today's bookings | top tickets -->
       <div class="dash-grid">
-        <section class="card">
-          <h2>
-            Sprint-Stand
-            @if (currentSprint(); as s) {
-              <span class="muted small">{{ s.name }}</span>
-            }
-          </h2>
-          @if (sprintDays(); as d) {
-            <div class="sprint-days">
-              Tag <strong>{{ d.done }}</strong> von {{ d.total }}
-              <span class="muted">· {{ d.remaining }} {{ d.remaining === 1 ? 'Tag' : 'Tage' }} übrig</span>
-            </div>
-            <div class="meter">
-              <span class="meter-fill" [style.width.%]="(d.done / d.total) * 100"></span>
-            </div>
-          }
-          @if (ticketStates().length > 0) {
-            <div class="state-chips sprint-states">
-              @for (s of ticketStates(); track s.state) {
-                <a routerLink="/tickets" class="state-chip">
-                  {{ s.state }} <span class="muted">{{ s.count }}</span>
-                </a>
-              }
-            </div>
-          }
-          @if (effortTotals(); as e) {
-            <div class="sprint-effort small">
-              <span [class.over-effort]="e.spent > e.estimate">
-                Ist {{ dur(e.spent) }} <span class="muted">/ Soll {{ dur(e.estimate) }}</span>
-              </span>
-            </div>
-            <div class="meter">
-              <span
-                class="meter-fill"
-                [class.ok]="e.spent <= e.estimate"
-                [class.warn]="e.spent > e.estimate"
-                [style.width.%]="Math.min(100, (e.spent / e.estimate) * 100)"
-              ></span>
-            </div>
-          }
-          @if (!currentSprint() && ticketStates().length === 0) {
-            <div class="muted small">Keine Sprint-Daten (team.json / Tickets fehlen).</div>
-          }
-        </section>
-
         <section class="card">
           <h2>Heutige Buchungen</h2>
           @if (todayItems().length > 0) {

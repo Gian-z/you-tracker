@@ -768,8 +768,14 @@
 }
 
 .dashboard .hero-tiles {
-  grid-template-columns: 2fr 1.4fr 1fr;
+  grid-template-columns: 1.6fr 1.1fr 1.1fr 1.2fr;
   margin-bottom: 0;
+}
+
+@media (max-width: 70rem) {
+  .dashboard .hero-tiles {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .hero-target {
@@ -826,12 +832,13 @@
 
 /* --- sprint progress card (Heute) --- */
 
-.sprint-days {
-  margin-bottom: var(--space-1);
+.sprint-states {
+  margin-top: var(--space-2);
 }
 
-.sprint-states {
-  margin: var(--space-3) 0;
+.sprint-states .state-chip {
+  padding: 0.05rem 0.55rem;
+  font-size: var(--fs-xs);
 }
 
 .sprint-states .state-chip {
@@ -840,7 +847,7 @@
 }
 
 .sprint-effort {
-  margin: var(--space-3) 0 var(--space-1);
+  margin: var(--space-2) 0 var(--space-1);
 }
 
 .over-effort {
