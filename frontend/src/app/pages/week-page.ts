@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
-import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-dialog';
+import { LogTimeDialog } from '../dialogs/log-time-dialog';
 import {
   addDays,
   formatClock,
@@ -11,86 +11,52 @@ import {
   startOfWeek,
   toIsoDate,
 } from '../format';
-import { BookingPreset, BookingTarget, DraftResult, TimeOverview, WorkLogRequest } from '../models';
+import { DaySummary, DraftResult, TimeOverview } from '../models';
 import { ApiService } from '../services/api.service';
-import { BookingService } from '../services/booking.service';
 import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 
+/** Week review: per-day meters, drill-down into bookings, gap fixing (per-day booking + AI). */
 @Component({
   selector: 'app-week-page',
-  imports: [DraftReviewDialog, SubtaskPickerDialog],
+  imports: [DraftReviewDialog, LogTimeDialog],
   template: `
     <div class="page">
       <div class="toolbar">
-        <button type="button" (click)="shiftWeek(-1)" title="Previous week">‹</button>
-        <button type="button" (click)="goToday()">Today</button>
-        <button type="button" (click)="shiftWeek(1)" title="Next week">›</button>
+        <button type="button" (click)="shiftWeek(-1)" title="Vorherige Woche">‹</button>
+        <button type="button" (click)="goToday()">Heute</button>
+        <button type="button" (click)="shiftWeek(1)" title="Nächste Woche">›</button>
         <span class="week-label">{{ weekLabel() }}</span>
         <span class="flex-spacer"></span>
-        <button type="button" (click)="fillGaps()" [disabled]="aiBusy() || loading()">AI: fill gaps</button>
-        <button type="button" (click)="load(true)" [disabled]="loading()">Refresh</button>
+        <button type="button" (click)="fillGaps()" [disabled]="aiBusy() || loading()">KI: Lücken füllen</button>
+        <button type="button" (click)="load(true)" [disabled]="loading()">Aktualisieren</button>
       </div>
-
-      @if (dev.isSelf() && presets().length > 0) {
-        <div class="presets-strip">
-          <span class="muted small">Presets:</span>
-          @for (p of presets(); track p.id) {
-            <span class="preset-chip" [class.busy]="bookingPresetId() === p.id">
-              <button
-                type="button"
-                class="preset-book"
-                [disabled]="bookingPresetId() !== null"
-                (click)="bookPreset(p)"
-                [title]="p.issueId + ' — ' + p.issueSummary + ' · books ' + dur(p.minutes) + ' for today'"
-              >
-                {{ p.name }} · {{ dur(p.minutes) }}
-              </button>
-              <button
-                type="button"
-                class="preset-delete"
-                title="Delete preset"
-                [disabled]="bookingPresetId() !== null"
-                (click)="deletePreset(p)"
-              >
-                ×
-              </button>
-            </span>
-          }
-          <span class="muted small">(click to book for today — save new ones from the Log time dialog)</span>
-        </div>
-      }
 
       @if (aiBusy()) {
         <div class="banner info">
-          <span class="spinner"></span> Claude is thinking… this can take a minute
+          <span class="spinner"></span> Claude denkt nach… das kann eine Minute dauern
         </div>
       }
 
       @if (error(); as err) {
         <div class="banner error">
           {{ err }}
-          <button type="button" class="link" (click)="error.set(null)">dismiss</button>
-        </div>
-      }
-      @if (notice(); as n) {
-        <div class="banner success">
-          {{ n }}
-          <button type="button" class="link" (click)="notice.set(null)">dismiss</button>
+          <button type="button" class="link" (click)="error.set(null)">schliessen</button>
         </div>
       }
 
       @if (loading()) {
-        <div class="loading"><span class="spinner"></span> Loading week…</div>
+        <div class="loading"><span class="spinner"></span> Woche laden…</div>
       } @else if (overview(); as ov) {
         <div class="table-scroll">
           <table class="data-table week-table">
             <thead>
               <tr>
-                <th>Day</th>
-                <th class="num">Booked</th>
-                <th class="num">Target</th>
-                <th>Gap</th>
+                <th>Tag</th>
+                <th class="num">Gebucht</th>
+                <th class="meter-col">Fortschritt</th>
+                <th class="num">Soll</th>
+                <th>Lücke</th>
                 <th class="num">Fokus</th>
               </tr>
             </thead>
@@ -107,21 +73,31 @@ import { RefreshService } from '../services/refresh.service';
                     {{ dayLabel(d.date) }}
                   </td>
                   <td class="num">{{ clock(d.bookedMinutes) }}</td>
+                  <td class="meter-col">
+                    @if (d.isWorkday && d.targetMinutes > 0) {
+                      <span class="meter">
+                        <span
+                          class="meter-fill"
+                          [class.ok]="d.gapMinutes === 0"
+                          [style.width.%]="percentOfTarget(d)"
+                        ></span>
+                      </span>
+                    }
+                  </td>
                   <td class="num muted">{{ clock(d.targetMinutes) }}</td>
                   <td>
                     @if (d.gapMinutes > 0) {
-                      <span class="badge amber">gap {{ dur(d.gapMinutes) }}</span>
+                      <span class="badge amber">Lücke {{ dur(d.gapMinutes) }}</span>
                     }
                   </td>
                   <td class="num">{{ score(d.fokusScore) }}</td>
                 </tr>
                 @if (isExpanded(d.date)) {
                   <tr class="detail-row">
-                    <td colspan="5">
+                    <td colspan="6">
                       @if (d.items.length > 0) {
                         <div class="day-meta muted small">
-                          {{ d.contextSwitches }} context switch{{ d.contextSwitches === 1 ? '' : 'es' }} ·
-                          deep work {{ percent(d.deepWorkShare) }}
+                          {{ d.contextSwitches }} Kontextwechsel · Deep Work {{ percent(d.deepWorkShare) }}
                         </div>
                         <table class="items-table">
                           <tbody>
@@ -137,7 +113,14 @@ import { RefreshService } from '../services/refresh.service';
                           </tbody>
                         </table>
                       } @else {
-                        <span class="muted small">No entries.</span>
+                        <span class="muted small">Keine Einträge.</span>
+                      }
+                      @if (dev.isSelf()) {
+                        <div class="day-actions">
+                          <button type="button" class="small" (click)="bookForDay(d.date, $event)">
+                            Zeit buchen für diesen Tag
+                          </button>
+                        </div>
                       }
                     </td>
                   </tr>
@@ -148,13 +131,14 @@ import { RefreshService } from '../services/refresh.service';
               <tr>
                 <td>Total</td>
                 <td class="num">{{ clock(ov.totalBookedMinutes) }}</td>
+                <td></td>
                 <td class="num muted">{{ clock(ov.totalTargetMinutes) }}</td>
                 <td>
                   @if (ov.totalTargetMinutes - ov.totalBookedMinutes > 0) {
-                    <span class="badge amber">gap {{ dur(ov.totalTargetMinutes - ov.totalBookedMinutes) }}</span>
+                    <span class="badge amber">Lücke {{ dur(ov.totalTargetMinutes - ov.totalBookedMinutes) }}</span>
                   }
                 </td>
-                <td class="num">avg {{ score(ov.averageFokusScore) }}</td>
+                <td class="num">Ø {{ score(ov.averageFokusScore) }}</td>
               </tr>
             </tfoot>
           </table>
@@ -169,11 +153,12 @@ import { RefreshService } from '../services/refresh.service';
         (closed)="draftResult.set(null)"
       />
     }
-    @if (pickerTarget(); as target) {
-      <app-subtask-picker-dialog
-        [target]="target"
-        (chosen)="onPickerChosen($event)"
-        (closed)="pickerTarget.set(null)"
+    @if (logDate(); as date) {
+      <app-log-time-dialog
+        [issueId]="logIssueId()"
+        [issueSummary]="''"
+        [initialDate]="date"
+        (closed)="logDate.set(null)"
       />
     }
   `,
@@ -181,7 +166,6 @@ import { RefreshService } from '../services/refresh.service';
 export class WeekPage {
   private readonly api = inject(ApiService);
   private readonly refresh = inject(RefreshService);
-  private readonly booking = inject(BookingService);
   protected readonly dev = inject(DevService);
 
   readonly weekStart = signal(startOfWeek(new Date()));
@@ -191,11 +175,8 @@ export class WeekPage {
   readonly aiBusy = signal(false);
   readonly draftResult = signal<DraftResult | null>(null);
   readonly expanded = signal<ReadonlySet<string>>(new Set());
-  readonly presets = signal<BookingPreset[]>([]);
-  readonly bookingPresetId = signal<string | null>(null);
-  readonly notice = signal<string | null>(null);
-  readonly pickerTarget = signal<BookingTarget | null>(null);
-  private pendingRequest: WorkLogRequest | null = null;
+  readonly logDate = signal<string | null>(null);
+  readonly logIssueId = signal('');
 
   readonly today = toIsoDate(new Date());
 
@@ -210,78 +191,8 @@ export class WeekPage {
       this.refresh.worklogVersion();
       this.weekStart();
       this.dev.devParam();
-      untracked(() => {
-        void this.load(false);
-        void this.loadPresets(); // picks up presets saved via the Log time dialog
-      });
+      untracked(() => void this.load(false));
     });
-  }
-
-  async loadPresets(): Promise<void> {
-    try {
-      this.presets.set(await this.api.getPresets());
-    } catch {
-      this.presets.set([]); // strip simply stays hidden
-    }
-  }
-
-  async bookPreset(preset: BookingPreset): Promise<void> {
-    this.bookingPresetId.set(preset.id);
-    this.error.set(null);
-    const request: WorkLogRequest = {
-      issueId: preset.issueId,
-      date: this.today,
-      minutes: preset.minutes,
-      typeId: preset.typeId,
-      text: preset.comment,
-    };
-    try {
-      const outcome = await this.booking.bookWithPolicy(request);
-      if (outcome.status === 'needs-picker') {
-        this.pendingRequest = request;
-        this.pickerTarget.set(outcome.target);
-      } else {
-        this.showBooked(outcome.item.issueId, request.minutes, outcome.redirectedFrom);
-      }
-    } catch (err) {
-      this.error.set((err as Error).message);
-    } finally {
-      this.bookingPresetId.set(null);
-    }
-  }
-
-  async onPickerChosen(choice: SubtaskChoice): Promise<void> {
-    const request = this.pendingRequest;
-    this.pickerTarget.set(null);
-    this.pendingRequest = null;
-    if (!request) {
-      return;
-    }
-    try {
-      const item = await this.booking.book({
-        ...request,
-        issueId: choice.issueId,
-        allowFeature: choice.allowFeature,
-      });
-      this.showBooked(item.issueId, request.minutes, null);
-    } catch (err) {
-      this.error.set((err as Error).message);
-    }
-  }
-
-  private showBooked(issueId: string, minutes: number, redirectedFrom: string | null): void {
-    const suffix = redirectedFrom ? ` (umgeleitet von ${redirectedFrom})` : '';
-    this.notice.set(`${formatDuration(minutes)} auf ${issueId} gebucht${suffix}`);
-    setTimeout(() => this.notice.set(null), 5000);
-  }
-
-  async deletePreset(preset: BookingPreset): Promise<void> {
-    try {
-      await this.api.deletePreset(preset.id);
-      await this.loadPresets();
-    } catch (err) {
-      this.error.set((err as Error).message);
-    }
   }
 
   shiftWeek(direction: number): void {
@@ -310,10 +221,18 @@ export class WeekPage {
     return this.expanded().has(date);
   }
 
+  bookForDay(date: string, event: Event): void {
+    event.stopPropagation(); // don't collapse the row
+    this.logIssueId.set('');
+    this.logDate.set(date);
+  }
+
   async load(refresh: boolean): Promise<void> {
     const from = toIsoDate(this.weekStart());
     const to = toIsoDate(addDays(this.weekStart(), 6));
-    this.loading.set(true);
+    if (!this.overview()) {
+      this.loading.set(true);
+    }
     this.error.set(null);
     try {
       this.overview.set(await this.api.getOverview(from, to, refresh, this.dev.devParam()));
@@ -336,6 +255,10 @@ export class WeekPage {
     } finally {
       this.aiBusy.set(false);
     }
+  }
+
+  percentOfTarget(day: DaySummary): number {
+    return Math.min(100, (day.bookedMinutes / day.targetMinutes) * 100);
   }
 
   dayLabel(date: string): string {

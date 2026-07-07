@@ -522,6 +522,19 @@
   margin-bottom: 0.35rem;
 }
 
+.day-actions {
+  margin-top: var(--space-2);
+}
+
+.week-table .meter-col {
+  min-width: 8rem;
+}
+
+.week-table .meter {
+  display: block;
+  margin-top: 0.3rem;
+}
+
 .items-table {
   width: 100%;
   border-collapse: collapse;

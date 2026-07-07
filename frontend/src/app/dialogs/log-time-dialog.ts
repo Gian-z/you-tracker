@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { formatDuration, parseDuration, toIsoDate } from '../format';
-import { BookingTarget, WorkItem, WorkType } from '../models';
+import { BookingTarget, TaskListItem, WorkItem, WorkType } from '../models';
 import { ApiService } from '../services/api.service';
 import { BookingService } from '../services/booking.service';
 
@@ -13,10 +13,22 @@ import { BookingService } from '../services/booking.service';
     <div class="overlay" (click)="cancel()">
       <div class="dialog" role="dialog" aria-label="Zeit buchen" (click)="$event.stopPropagation()">
         <h2>Zeit buchen</h2>
-        <div class="dialog-issue">
-          <span class="issue-id">{{ issueId() }}</span>
-          <span class="muted">{{ issueSummary() }}</span>
-        </div>
+        @if (pickIssue()) {
+          <label>
+            Ticket
+            <select name="pickedIssue" [(ngModel)]="pickedIssueId" required>
+              <option value="" disabled>Ticket wählen…</option>
+              @for (i of ownIssues(); track i.issueId) {
+                <option [value]="i.issueId">{{ i.issueId }} – {{ i.summary }}</option>
+              }
+            </select>
+          </label>
+        } @else {
+          <div class="dialog-issue">
+            <span class="issue-id">{{ issueId() }}</span>
+            <span class="muted">{{ issueSummary() }}</span>
+          </div>
+        }
 
         @if (target(); as t) {
           @if (t.kind === 'redirected') {
@@ -112,6 +124,7 @@ export class LogTimeDialog {
   private readonly api = inject(ApiService);
   private readonly booking = inject(BookingService);
 
+  /** Empty string switches the dialog into pick-a-ticket mode (e.g. per-day booking). */
   readonly issueId = input.required<string>();
   readonly issueSummary = input<string>('');
   readonly initialMinutes = input<number | null>(null);
@@ -135,8 +148,20 @@ export class LogTimeDialog {
   readonly target = signal<BookingTarget | null>(null);
   readonly chosenTargetId = signal('');
 
+  /** Pick-a-ticket mode (no fixed issue passed in). */
+  readonly pickIssue = computed(() => this.issueId() === '');
+  readonly ownIssues = signal<TaskListItem[]>([]);
+  readonly pickedIssueId = signal('');
+
+  readonly currentIssueId = computed(() =>
+    this.pickIssue() ? this.pickedIssueId() : this.issueId(),
+  );
+
   /** Ambiguous targets need an explicit choice; noTask needs the explicit checkbox. */
   readonly targetReady = computed(() => {
+    if (this.currentIssueId() === '') {
+      return false;
+    }
     const t = this.target();
     if (t?.kind === 'ambiguous') {
       return this.chosenTargetId() !== '';
@@ -159,15 +184,28 @@ export class LogTimeDialog {
       }
     });
     effect(() => {
-      const issueId = this.issueId();
+      const issueId = this.currentIssueId();
       untracked(() => {
         this.target.set(null);
         this.chosenTargetId.set('');
+        if (issueId === '') {
+          return;
+        }
         void this.booking
           .resolve(issueId)
           .then((target) => this.target.set(target))
           .catch(() => undefined); // no pre-flight — the command handler still enforces the rule
       });
+    });
+    effect(() => {
+      if (this.pickIssue()) {
+        untracked(() =>
+          void this.api
+            .getIssues()
+            .then((issues) => this.ownIssues.set(issues))
+            .catch(() => undefined),
+        );
+      }
     });
     this.api
       .getWorkTypes()
@@ -187,6 +225,13 @@ export class LogTimeDialog {
     }
   }
 
+  private currentSummary(): string {
+    if (!this.pickIssue()) {
+      return this.issueSummary();
+    }
+    return this.ownIssues().find((i) => i.issueId === this.pickedIssueId())?.summary ?? '';
+  }
+
   /** Where the booking actually lands, after redirect/picker/confirmation. */
   private effectiveTarget(): { issueId: string; summary: string; allowFeature: boolean } {
     const t = this.target();
@@ -198,9 +243,9 @@ export class LogTimeDialog {
       return { issueId: this.chosenTargetId(), summary: chosen?.summary ?? '', allowFeature: false };
     }
     if (t?.kind === 'noTask') {
-      return { issueId: this.issueId(), summary: this.issueSummary(), allowFeature: true };
+      return { issueId: this.currentIssueId(), summary: this.currentSummary(), allowFeature: true };
     }
-    return { issueId: this.issueId(), summary: this.issueSummary(), allowFeature: false };
+    return { issueId: this.currentIssueId(), summary: this.currentSummary(), allowFeature: false };
   }
 
   async save(): Promise<void> {
