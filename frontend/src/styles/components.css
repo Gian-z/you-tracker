@@ -146,6 +146,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Feature rows: bookings get redirected to the task subtask */
+.redirect-badge {
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  margin-left: var(--space-1);
+  cursor: help;
+}
+
+.picker-option {
+  margin: var(--space-1) 0;
+  color: var(--text);
+}
+
 /* --- badges, banners, spinner --- */
 
 .badge {

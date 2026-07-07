@@ -2,9 +2,19 @@ import { Component, computed, effect, inject, signal, untracked } from '@angular
 import { FormsModule } from '@angular/forms';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
 import { LogTimeDialog } from '../dialogs/log-time-dialog';
+import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-dialog';
 import { addDays, formatClock, formatDuration, formatScore, startOfWeek, toIsoDate } from '../format';
-import { BookingPreset, DraftResult, TaskListItem, TimeOverview, TriageResult } from '../models';
+import {
+  BookingPreset,
+  BookingTarget,
+  DraftResult,
+  TaskListItem,
+  TimeOverview,
+  TriageResult,
+  WorkLogRequest,
+} from '../models';
 import { ApiService } from '../services/api.service';
+import { BookingService } from '../services/booking.service';
 import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 import { TimerService } from '../services/timer.service';
@@ -19,13 +29,19 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
 /** Single-page overview: KPIs, my sprint tasks, status distribution, sprint pool, today's bookings, AI. */
 @Component({
   selector: 'app-dashboard-page',
-  imports: [FormsModule, DraftReviewDialog, LogTimeDialog],
+  imports: [FormsModule, DraftReviewDialog, LogTimeDialog, SubtaskPickerDialog],
   template: `
     <div class="page dashboard">
       @if (error(); as err) {
         <div class="banner error">
           {{ err }}
           <button type="button" class="link" (click)="error.set(null)">dismiss</button>
+        </div>
+      }
+      @if (notice(); as n) {
+        <div class="banner success">
+          {{ n }}
+          <button type="button" class="link" (click)="notice.set(null)">dismiss</button>
         </div>
       }
 
@@ -69,7 +85,12 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
               <tbody>
                 @for (t of issues(); track t.issueId) {
                   <tr>
-                    <td class="nowrap"><a [href]="t.webUrl" target="_blank" rel="noopener">{{ t.issueId }}</a></td>
+                    <td class="nowrap">
+                      <a [href]="t.webUrl" target="_blank" rel="noopener">{{ t.issueId }}</a>
+                      @if (booking.isFeature(t)) {
+                        <span class="redirect-badge" [title]="redirectHint(t)">↪</span>
+                      }
+                    </td>
                     <td class="nowrap">{{ t.state ?? '–' }}</td>
                     <td class="summary-cell">{{ t.summary }}</td>
                     <td class="nowrap row-actions">
@@ -206,6 +227,13 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
     @if (draftResult(); as result) {
       <app-draft-review-dialog [drafts]="result.drafts" [unmatched]="result.unmatched" (closed)="draftResult.set(null)" />
     }
+    @if (pickerTarget(); as target) {
+      <app-subtask-picker-dialog
+        [target]="target"
+        (chosen)="onPickerChosen($event)"
+        (closed)="pickerTarget.set(null)"
+      />
+    }
   `,
 })
 export class DashboardPage {
@@ -213,6 +241,7 @@ export class DashboardPage {
   private readonly refresh = inject(RefreshService);
   private readonly timer = inject(TimerService);
   protected readonly dev = inject(DevService);
+  protected readonly booking = inject(BookingService);
 
   readonly issues = signal<TaskListItem[]>([]);
   readonly pool = signal<TaskListItem[]>([]);
@@ -222,6 +251,9 @@ export class DashboardPage {
   readonly error = signal<string | null>(null);
   readonly logIssue = signal<TaskListItem | null>(null);
   readonly bookingPresetId = signal<string | null>(null);
+  readonly notice = signal<string | null>(null);
+  readonly pickerTarget = signal<BookingTarget | null>(null);
+  private pendingRequest: WorkLogRequest | null = null;
   readonly aiBusy = signal<AiAction | null>(null);
   readonly freeText = signal('');
   readonly draftResult = signal<DraftResult | null>(null);
@@ -281,6 +313,7 @@ export class DashboardPage {
       this.week.set(weekOverview);
       this.pool.set(poolTasks);
       this.presets.set(presets);
+      this.booking.prefetch(issues); // ↪ badge tooltips for Feature rows
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
@@ -300,19 +333,67 @@ export class DashboardPage {
   async bookPreset(preset: BookingPreset): Promise<void> {
     this.bookingPresetId.set(preset.id);
     this.error.set(null);
+    const request: WorkLogRequest = {
+      issueId: preset.issueId,
+      date: this.today,
+      minutes: preset.minutes,
+      typeId: preset.typeId,
+      text: preset.comment,
+    };
     try {
-      await this.api.createWorklog({
-        issueId: preset.issueId,
-        date: this.today,
-        minutes: preset.minutes,
-        typeId: preset.typeId,
-        text: preset.comment,
-      });
-      this.refresh.worklogChanged();
+      const outcome = await this.booking.bookWithPolicy(request);
+      if (outcome.status === 'needs-picker') {
+        this.pendingRequest = request;
+        this.pickerTarget.set(outcome.target);
+      } else {
+        this.showBooked(outcome.item.issueId, request.minutes, outcome.redirectedFrom);
+      }
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
       this.bookingPresetId.set(null);
+    }
+  }
+
+  async onPickerChosen(choice: SubtaskChoice): Promise<void> {
+    const request = this.pendingRequest;
+    this.pickerTarget.set(null);
+    this.pendingRequest = null;
+    if (!request) {
+      return;
+    }
+    try {
+      const item = await this.booking.book({
+        ...request,
+        issueId: choice.issueId,
+        allowFeature: choice.allowFeature,
+      });
+      this.showBooked(item.issueId, request.minutes, null);
+    } catch (err) {
+      this.error.set((err as Error).message);
+    }
+  }
+
+  private showBooked(issueId: string, minutes: number, redirectedFrom: string | null): void {
+    const suffix = redirectedFrom ? ` (umgeleitet von ${redirectedFrom})` : '';
+    this.notice.set(`${formatDuration(minutes)} auf ${issueId} gebucht${suffix}`);
+    setTimeout(() => this.notice.set(null), 5000);
+  }
+
+  redirectHint(item: TaskListItem): string {
+    const target = this.booking.resolutionFor(item.issueId);
+    if (!target) {
+      return 'Feature – Buchungen landen auf der Task-Teilaufgabe';
+    }
+    switch (target.kind) {
+      case 'redirected':
+        return `Buchungen landen auf ${target.targetIssueId} – ${target.targetSummary}`;
+      case 'ambiguous':
+        return `${target.candidates.length} Task-Teilaufgaben – beim Buchen wählen`;
+      case 'noTask':
+        return 'Feature ohne Task-Teilaufgabe!';
+      default:
+        return '';
     }
   }
 

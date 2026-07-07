@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import {
   BookingPreset,
+  BookingTarget,
   CommitResult,
   DraftResult,
   Meta,
@@ -124,6 +125,13 @@ export class ApiService {
 
   createWorklog(request: WorkLogRequest): Promise<WorkItem> {
     return this.post<WorkItem>('/api/worklog', request);
+  }
+
+  getBookingTarget(issueId: string, refresh = false): Promise<BookingTarget> {
+    return this.get<BookingTarget>(
+      `/api/issues/${encodeURIComponent(issueId)}/booking-target`,
+      { refresh: String(refresh) },
+    );
   }
 
   commitDrafts(drafts: WorkLogDraft[], defaultTypeId: string | null = null): Promise<CommitResult> {

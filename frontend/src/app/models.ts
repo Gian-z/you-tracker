@@ -8,6 +8,7 @@ export interface Meta {
   timezone: string;
   webBaseUrl: string;
   aiProvider: 'anthropic' | 'claude-cli';
+  featureTypes: string[];
   currentUser: UserInfo;
 }
 
@@ -92,6 +93,27 @@ export interface WorkLogRequest {
   minutes: number;
   typeId?: string | null;
   text?: string | null;
+  /** Explicit user confirmation to book on a Feature ticket despite the task rule. */
+  allowFeature?: boolean;
+}
+
+// --- booking-target pre-flight ("bookings land on tasks" rule) ---
+
+export type BookingTargetKind = 'direct' | 'redirected' | 'ambiguous' | 'noTask';
+
+export interface SubtaskCandidate {
+  issueId: string;
+  summary: string;
+  resolved: boolean;
+}
+
+export interface BookingTarget {
+  requestedIssueId: string;
+  kind: BookingTargetKind;
+  targetIssueId: string;
+  targetSummary: string | null;
+  targetResolved: boolean;
+  candidates: SubtaskCandidate[];
 }
 
 export type Confidence = 'high' | 'medium' | 'low';
@@ -120,6 +142,8 @@ export interface DraftResult {
 export interface CommitResult {
   created: number;
   errors: string[];
+  /** Informational messages, e.g. Feature→Task redirects. */
+  notes: string[];
 }
 
 export interface TriageEntry {

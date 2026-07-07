@@ -1,5 +1,6 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
+import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-dialog';
 import {
   addDays,
   formatClock,
@@ -10,14 +11,15 @@ import {
   startOfWeek,
   toIsoDate,
 } from '../format';
-import { BookingPreset, DraftResult, TimeOverview } from '../models';
+import { BookingPreset, BookingTarget, DraftResult, TimeOverview, WorkLogRequest } from '../models';
 import { ApiService } from '../services/api.service';
+import { BookingService } from '../services/booking.service';
 import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 
 @Component({
   selector: 'app-week-page',
-  imports: [DraftReviewDialog],
+  imports: [DraftReviewDialog, SubtaskPickerDialog],
   template: `
     <div class="page">
       <div class="toolbar">
@@ -69,6 +71,12 @@ import { RefreshService } from '../services/refresh.service';
         <div class="banner error">
           {{ err }}
           <button type="button" class="link" (click)="error.set(null)">dismiss</button>
+        </div>
+      }
+      @if (notice(); as n) {
+        <div class="banner success">
+          {{ n }}
+          <button type="button" class="link" (click)="notice.set(null)">dismiss</button>
         </div>
       }
 
@@ -161,11 +169,19 @@ import { RefreshService } from '../services/refresh.service';
         (closed)="draftResult.set(null)"
       />
     }
+    @if (pickerTarget(); as target) {
+      <app-subtask-picker-dialog
+        [target]="target"
+        (chosen)="onPickerChosen($event)"
+        (closed)="pickerTarget.set(null)"
+      />
+    }
   `,
 })
 export class WeekPage {
   private readonly api = inject(ApiService);
   private readonly refresh = inject(RefreshService);
+  private readonly booking = inject(BookingService);
   protected readonly dev = inject(DevService);
 
   readonly weekStart = signal(startOfWeek(new Date()));
@@ -177,6 +193,9 @@ export class WeekPage {
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly presets = signal<BookingPreset[]>([]);
   readonly bookingPresetId = signal<string | null>(null);
+  readonly notice = signal<string | null>(null);
+  readonly pickerTarget = signal<BookingTarget | null>(null);
+  private pendingRequest: WorkLogRequest | null = null;
 
   readonly today = toIsoDate(new Date());
 
@@ -209,20 +228,51 @@ export class WeekPage {
   async bookPreset(preset: BookingPreset): Promise<void> {
     this.bookingPresetId.set(preset.id);
     this.error.set(null);
+    const request: WorkLogRequest = {
+      issueId: preset.issueId,
+      date: this.today,
+      minutes: preset.minutes,
+      typeId: preset.typeId,
+      text: preset.comment,
+    };
     try {
-      await this.api.createWorklog({
-        issueId: preset.issueId,
-        date: this.today,
-        minutes: preset.minutes,
-        typeId: preset.typeId,
-        text: preset.comment,
-      });
-      this.refresh.worklogChanged();
+      const outcome = await this.booking.bookWithPolicy(request);
+      if (outcome.status === 'needs-picker') {
+        this.pendingRequest = request;
+        this.pickerTarget.set(outcome.target);
+      } else {
+        this.showBooked(outcome.item.issueId, request.minutes, outcome.redirectedFrom);
+      }
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
       this.bookingPresetId.set(null);
     }
+  }
+
+  async onPickerChosen(choice: SubtaskChoice): Promise<void> {
+    const request = this.pendingRequest;
+    this.pickerTarget.set(null);
+    this.pendingRequest = null;
+    if (!request) {
+      return;
+    }
+    try {
+      const item = await this.booking.book({
+        ...request,
+        issueId: choice.issueId,
+        allowFeature: choice.allowFeature,
+      });
+      this.showBooked(item.issueId, request.minutes, null);
+    } catch (err) {
+      this.error.set((err as Error).message);
+    }
+  }
+
+  private showBooked(issueId: string, minutes: number, redirectedFrom: string | null): void {
+    const suffix = redirectedFrom ? ` (umgeleitet von ${redirectedFrom})` : '';
+    this.notice.set(`${formatDuration(minutes)} auf ${issueId} gebucht${suffix}`);
+    setTimeout(() => this.notice.set(null), 5000);
   }
 
   async deletePreset(preset: BookingPreset): Promise<void> {

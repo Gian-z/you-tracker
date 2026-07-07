@@ -29,6 +29,9 @@ interface DraftRow {
             } @else {
               <div class="banner">No entries created.</div>
             }
+            @for (note of res.notes; track $index) {
+              <div class="banner info">{{ note }}</div>
+            }
             @for (err of res.errors; track $index) {
               <div class="banner error">{{ err }}</div>
             }
