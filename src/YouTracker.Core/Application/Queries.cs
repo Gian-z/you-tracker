@@ -116,6 +116,13 @@ public sealed record GetPresetsQuery : IQuery<IReadOnlyList<BookingPreset>>;
 public sealed record GetHygieneFindingsQuery(string? Dev = null)
     : IQuery<IReadOnlyList<HygieneFinding>>;
 
+/// <summary>
+/// Deterministic (non-AI): the day's calendar meetings mapped to booking drafts via the
+/// configured title-pattern rules. Deliberately uncached — button-triggered, and the result
+/// depends on already-booked work items (like SearchIssuesQuery).
+/// </summary>
+public sealed record GetMeetingDraftsQuery(DateOnly Date) : IQuery<WorkLogDraftResult>;
+
 // --- AI queries: read-only proposals; their handlers have no access to IWorkItemWriter ---
 
 public sealed record DraftWorkLogQuery(string FreeText, DateOnly Date, string? Dev = null)

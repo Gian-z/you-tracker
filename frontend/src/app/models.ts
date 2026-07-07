@@ -9,6 +9,7 @@ export interface Meta {
   webBaseUrl: string;
   aiProvider: 'anthropic' | 'claude-cli';
   featureTypes: string[];
+  calendarEnabled: boolean;
   currentUser: UserInfo;
 }
 

@@ -91,6 +91,31 @@ public interface ICommitActivityReader
     );
 }
 
+/// <summary>One meeting occurrence from the user's calendar (recurrences already expanded).</summary>
+public sealed record CalendarMeeting(
+    string Title,
+    DateTimeOffset Start,
+    DateTimeOffset End,
+    bool IsAllDay,
+    // Published M365 feeds strip ATTENDEE/PARTSTAT; declined-but-kept meetings are exported
+    // with X-MICROSOFT-CDO-BUSYSTATUS:FREE, cancelled ones with STATUS:CANCELLED — both count
+    // as declined here. Side effect: meetings explicitly marked "frei" are skipped too.
+    bool IsDeclined
+);
+
+/// <summary>
+/// Read port for the current user's calendar (implemented by the Calendar module).
+/// Reports facts only; filtering policy (all-day/declined) lives in the Core handler.
+/// </summary>
+public interface IMeetingReader
+{
+    Task<IReadOnlyList<CalendarMeeting>> GetMeetingsAsync(
+        DateOnly from,
+        DateOnly to,
+        CancellationToken ct = default
+    );
+}
+
 /// <summary>Read port for the tracker's user directory.</summary>
 public interface IUserDirectory
 {

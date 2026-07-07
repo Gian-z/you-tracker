@@ -149,6 +149,17 @@ public sealed class FakeCommitActivityReader : ICommitActivityReader
         );
 }
 
+public sealed class FakeMeetingReader : IMeetingReader
+{
+    public List<CalendarMeeting> Meetings { get; } = [];
+
+    public Task<IReadOnlyList<CalendarMeeting>> GetMeetingsAsync(
+        DateOnly from,
+        DateOnly to,
+        CancellationToken ct = default
+    ) => Task.FromResult<IReadOnlyList<CalendarMeeting>>(Meetings);
+}
+
 public sealed class FakeUserDirectory : IUserDirectory
 {
     public UserInfo CurrentUser { get; set; } = new("GZW", "Zwahlen, Gian-Luca");
@@ -278,7 +289,7 @@ public sealed class FakeAiProvider(string response = "{}") : IAiProvider
 
 public static class TestData
 {
-    public static AppConfig Config() =>
+    public static AppConfig Config(CalendarConfig? calendar = null) =>
         new(
             new YouTrackConfig(
                 "https://yt.example.com/youtrack",
@@ -286,7 +297,8 @@ public static class TestData
                 "perm:test"
             ),
             new AnthropicConfig("sk-ant-test", "claude-opus-4-8"),
-            new WorkdayConfig(8.0, "Europe/Zurich", ["In Bearbeitung", "In Arbeit"])
+            new WorkdayConfig(8.0, "Europe/Zurich", ["In Bearbeitung", "In Arbeit"]),
+            Calendar: calendar
         );
 
     public static Issue Issue(

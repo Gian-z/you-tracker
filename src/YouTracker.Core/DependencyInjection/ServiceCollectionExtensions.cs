@@ -71,6 +71,10 @@ public static class ServiceCollectionExtensions
             IQueryHandler<TriageIssuesQuery, TriageResult>,
             TriageIssuesQueryHandler
         >();
+        services.AddTransient<
+            IQueryHandler<GetMeetingDraftsQuery, WorkLogDraftResult>,
+            GetMeetingDraftsQueryHandler
+        >();
 
         // Command handlers
         services.AddTransient<

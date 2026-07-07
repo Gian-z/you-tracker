@@ -7,6 +7,7 @@
     <ProjectReference Include="..\YouTracker.Infrastructure.Storage\YouTracker.Infrastructure.Storage.csproj" />
     <ProjectReference Include="..\YouTracker.Infrastructure.ClaudeCli\YouTracker.Infrastructure.ClaudeCli.csproj" />
     <ProjectReference Include="..\YouTracker.Infrastructure.Git\YouTracker.Infrastructure.Git.csproj" />
+    <ProjectReference Include="..\YouTracker.Infrastructure.Calendar\YouTracker.Infrastructure.Calendar.csproj" />
   </ItemGroup>
 
   <ItemGroup>

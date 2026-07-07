@@ -29,6 +29,8 @@ public sealed record CommitWorkLogRequest(
 
 public sealed record AiDraftRequest(string FreeText, DateOnly Date, string? Dev = null);
 
+public sealed record CalendarDraftsRequest(DateOnly Date);
+
 public sealed record PeriodRequest(DateOnly From, DateOnly To, string? Dev = null);
 
 public sealed record SaveAbsencesRequest(

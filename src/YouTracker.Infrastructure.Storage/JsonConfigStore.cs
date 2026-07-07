@@ -92,7 +92,23 @@ public sealed class JsonConfigStore : IConfigStore
                     ? states
                     : DefaultInProgressStates
             ),
-            new GitConfig(dto.Git?.ScanRoots ?? [], FirstNonEmpty(dto.Git?.Author, null))
+            new GitConfig(dto.Git?.ScanRoots ?? [], FirstNonEmpty(dto.Git?.Author, null)),
+            dto.Calendar is null
+                ? null
+                : new CalendarConfig(
+                    FirstNonEmpty(dto.Calendar.IcsUrl, null),
+                    dto.Calendar.Rules?.Where(r =>
+                            !string.IsNullOrWhiteSpace(r.Pattern)
+                            && !string.IsNullOrWhiteSpace(r.IssueId)
+                        )
+                        .Select(r => new MeetingRule(
+                            r.Pattern!,
+                            r.IssueId!,
+                            FirstNonEmpty(r.WorkTypeName, null),
+                            FirstNonEmpty(r.Comment, null)
+                        ))
+                        .ToList()
+                )
         );
     }
 
@@ -102,7 +118,8 @@ public sealed class JsonConfigStore : IConfigStore
               "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "", "sprintQuery": "", "featureTypes": ["Feature"], "taskTypes": ["Task", "Aufgabe"] },
               "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
               "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] },
-              "git": { "scanRoots": ["C:/cmi-github"], "author": "" }
+              "git": { "scanRoots": ["C:/cmi-github"], "author": "" },
+              "calendar": { "icsUrl": "https://outlook.office365.com/owa/calendar/.../calendar.ics", "rules": [ { "pattern": "Daily*", "issueId": "AD-4711", "workTypeName": "Meeting", "comment": "Daily" } ] }
             }
             """;
 
@@ -124,6 +141,22 @@ public sealed class JsonConfigStore : IConfigStore
         public AnthropicDto? Anthropic { get; set; }
         public WorkdayDto? Workday { get; set; }
         public GitDto? Git { get; set; }
+        public CalendarDto? Calendar { get; set; }
+    }
+
+    private sealed class CalendarDto
+    {
+        /// <summary>Published Outlook ICS feed URL ("Kalender veröffentlichen").</summary>
+        public string? IcsUrl { get; set; }
+        public List<MeetingRuleDto>? Rules { get; set; }
+    }
+
+    private sealed class MeetingRuleDto
+    {
+        public string? Pattern { get; set; }
+        public string? IssueId { get; set; }
+        public string? WorkTypeName { get; set; }
+        public string? Comment { get; set; }
     }
 
     private sealed class YouTrackDto

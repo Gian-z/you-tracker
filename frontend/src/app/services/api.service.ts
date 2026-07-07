@@ -181,6 +181,10 @@ export class ApiService {
     return this.post<DraftResult>('/api/ai/draft', { freeText, date, dev });
   }
 
+  calendarDrafts(date: string): Promise<DraftResult> {
+    return this.post<DraftResult>('/api/calendar/drafts', { date });
+  }
+
   aiGapfills(from: string, to: string, dev: string | null = null): Promise<DraftResult> {
     return this.post<DraftResult>('/api/ai/gapfills', { from, to, dev });
   }

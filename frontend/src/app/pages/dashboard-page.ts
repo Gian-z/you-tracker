@@ -33,7 +33,7 @@ import { RefreshService } from '../services/refresh.service';
 import { SearchService } from '../services/search.service';
 import { TimerService } from '../services/timer.service';
 
-type AiAction = 'draft' | 'gaps' | 'summary-day' | 'summary-week' | 'triage';
+type AiAction = 'draft' | 'gaps' | 'summary-day' | 'summary-week' | 'triage' | 'meetings';
 
 const TOP_TICKET_COUNT = 5;
 
@@ -276,6 +276,16 @@ const TOP_TICKET_COUNT = 5;
           <button type="button" class="primary" (click)="ai('draft')" [disabled]="aiBusy() !== null || !freeText().trim()">
             Arbeitslog entwerfen
           </button>
+          @if (calendarEnabled() && dev.isSelf()) {
+            <button
+              type="button"
+              (click)="ai('meetings')"
+              [disabled]="aiBusy() !== null"
+              title="Kalender-Termine des Tages per Regel auf Tickets mappen (bestätigen vor Buchen)"
+            >
+              📅 Meetings buchen
+            </button>
+          }
           <button type="button" (click)="ai('gaps')" [disabled]="aiBusy() !== null">Wochenlücken füllen</button>
           <button type="button" (click)="ai('summary-day')" [disabled]="aiBusy() !== null">Tag zusammenfassen</button>
           <button type="button" (click)="ai('summary-week')" [disabled]="aiBusy() !== null">Woche zusammenfassen</button>
@@ -388,6 +398,7 @@ export class DashboardPage {
   readonly aiBusy = signal<AiAction | null>(null);
   readonly freeText = signal('');
   readonly aiDate = signal(toIsoDate(new Date()));
+  readonly calendarEnabled = signal(false);
   readonly draftResult = signal<DraftResult | null>(null);
   readonly summaryText = signal<string | null>(null);
   readonly triageResult = signal<TriageResult | null>(null);
@@ -425,6 +436,10 @@ export class DashboardPage {
       this.dev.devParam();
       untracked(() => void this.load(false));
     });
+    void this.api
+      .getMeta()
+      .then((meta) => this.calendarEnabled.set(meta.calendarEnabled))
+      .catch(() => undefined);
   }
 
   async load(refresh: boolean): Promise<void> {
@@ -605,6 +620,9 @@ export class DashboardPage {
           this.draftResult.set(
             await this.api.aiDraft(this.freeText().trim(), this.aiDate(), devParam),
           );
+          break;
+        case 'meetings':
+          this.draftResult.set(await this.api.calendarDrafts(this.aiDate()));
           break;
         case 'gaps':
           this.draftResult.set(await this.api.aiGapfills(from, to, devParam));

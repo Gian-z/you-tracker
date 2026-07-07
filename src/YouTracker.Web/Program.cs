@@ -3,6 +3,7 @@ using YouTracker.Core.Application;
 using YouTracker.Core.Config;
 using YouTracker.Core.DependencyInjection;
 using YouTracker.Infrastructure.Anthropic.DependencyInjection;
+using YouTracker.Infrastructure.Calendar.DependencyInjection;
 using YouTracker.Infrastructure.ClaudeCli.DependencyInjection;
 using YouTracker.Infrastructure.Git.DependencyInjection;
 using YouTracker.Infrastructure.Storage.DependencyInjection;
@@ -55,6 +56,7 @@ builder.Services.AddYouTrackerCore();
 builder.Services.AddYouTrackerYouTrack();
 builder.Services.AddYouTrackerStorage();
 builder.Services.AddYouTrackerGit();
+builder.Services.AddYouTrackerCalendar();
 
 // AI provider: real API key → Anthropic SDK; otherwise the local Claude Code CLI.
 if (config.Anthropic.HasApiKey)
@@ -116,6 +118,7 @@ api.MapGet(
             webBaseUrl = cfg.YouTrack.WebBaseUrl,
             aiProvider = cfg.Anthropic.HasApiKey ? "anthropic" : "claude-cli",
             featureTypes = cfg.EffectiveFeatureTypes,
+            calendarEnabled = cfg.CalendarEnabled,
             currentUser = await dispatcher.QueryAsync(new GetCurrentUserQuery(), ct),
         }
 );
@@ -322,6 +325,13 @@ api.MapPost(
             new CommitWorkLogDraftsCommand(request.Drafts, request.DefaultTypeId),
             ct
         )
+);
+
+// Deterministic (non-AI): the day's calendar meetings mapped to booking drafts via config rules.
+api.MapPost(
+    "/calendar/drafts",
+    (CalendarDraftsRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.QueryAsync(new GetMeetingDraftsQuery(request.Date), ct)
 );
 
 api.MapPost(

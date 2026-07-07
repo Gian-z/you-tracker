@@ -41,11 +41,24 @@ public sealed record WorkdayConfig(
 /// </summary>
 public sealed record GitConfig(IReadOnlyList<string> ScanRoots, string? Author = null);
 
+/// <summary>Maps calendar meetings to bookings: first matching title pattern wins.
+/// Wildcard <c>*</c>, case-insensitive over the full title ("Daily*", "*Retro*").</summary>
+public sealed record MeetingRule(
+    string Pattern,
+    string IssueId,
+    string? WorkTypeName = null,
+    string? Comment = null
+);
+
+/// <summary>Published Outlook ICS feed; null/empty URL disables the calendar feature.</summary>
+public sealed record CalendarConfig(string? IcsUrl, IReadOnlyList<MeetingRule>? Rules = null);
+
 public sealed record AppConfig(
     YouTrackConfig YouTrack,
     AnthropicConfig Anthropic,
     WorkdayConfig Workday,
-    GitConfig? Git = null
+    GitConfig? Git = null,
+    CalendarConfig? Calendar = null
 )
 {
     public int TargetMinutesPerWorkday => (int)Math.Round(Workday.TargetHours * 60);
@@ -68,4 +81,6 @@ public sealed record AppConfig(
     /// <summary>Issue types that count as bookable task subtasks (German instance default included).</summary>
     public IReadOnlyList<string> EffectiveTaskTypes =>
         YouTrack.TaskTypes is { Count: > 0 } configured ? configured : DefaultTaskTypes;
+
+    public bool CalendarEnabled => !string.IsNullOrWhiteSpace(Calendar?.IcsUrl);
 }

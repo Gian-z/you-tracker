@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\YouTracker.Core\YouTracker.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- RRULE/EXDATE/VTIMEZONE handling: M365 published feeds export recurring meetings
+         (the daily!) as un-expanded RRULE masters — hand-rolling this is a correctness trap. -->
+    <PackageReference Include="Ical.Net" Version="5.2.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="YouTracker.Core.Tests" />
+  </ItemGroup>
+
+</Project>
