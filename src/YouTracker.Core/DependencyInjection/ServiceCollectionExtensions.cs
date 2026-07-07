@@ -48,6 +48,10 @@ public static class ServiceCollectionExtensions
             GetHygieneFindingsQueryHandler
         >();
         services.AddTransient<
+            IQueryHandler<GetBookingTargetQuery, BookingTarget>,
+            GetBookingTargetQueryHandler
+        >();
+        services.AddTransient<
             IQueryHandler<DraftWorkLogQuery, WorkLogDraftResult>,
             DraftWorkLogQueryHandler
         >();

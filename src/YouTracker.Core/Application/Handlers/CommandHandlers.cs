@@ -5,8 +5,12 @@ using YouTracker.Core.ReadModels;
 
 namespace YouTracker.Core.Application.Handlers;
 
-public sealed class CreateWorkItemCommandHandler(IWorkItemWriter writer, IEventBus events)
-    : ICommandHandler<CreateWorkItemCommand, WorkItem>
+public sealed class CreateWorkItemCommandHandler(
+    IWorkItemWriter writer,
+    IIssueReader issues,
+    AppConfig config,
+    IEventBus events
+) : ICommandHandler<CreateWorkItemCommand, WorkItem>
 {
     public async Task<WorkItem> HandleAsync(
         CreateWorkItemCommand command,
@@ -15,10 +19,34 @@ public sealed class CreateWorkItemCommandHandler(IWorkItemWriter writer, IEventB
     {
         if (command.Minutes <= 0)
             throw new ArgumentException("Duration must be positive.", nameof(command));
+
+        // Server-side safety net for the booking rule — covers callers that skip the
+        // GetBookingTargetQuery pre-flight (AI drafts run through their own handler below).
+        var issueId = command.IssueId;
+        if (!command.AllowFeature)
+        {
+            var target = await BookingTargetResolver
+                .ResolveAsync(issues, config, command.IssueId, ct)
+                .ConfigureAwait(false);
+            issueId = target.Kind switch
+            {
+                BookingTargetKind.Redirected => target.TargetIssueId,
+                BookingTargetKind.Ambiguous => throw new InvalidOperationException(
+                    $"{command.IssueId} ist ein Feature mit mehreren Task-Teilaufgaben – "
+                        + $"bitte Ziel wählen: {string.Join(", ", target.Candidates.Select(c => c.IssueId))}"
+                ),
+                BookingTargetKind.NoTask => throw new InvalidOperationException(
+                    $"{command.IssueId} ist ein Feature ohne Task-Teilaufgabe. "
+                        + "Buchung auf das Feature muss explizit bestätigt werden."
+                ),
+                _ => command.IssueId,
+            };
+        }
+
         var created = await writer
             .CreateWorkItemAsync(
                 new NewWorkItem(
-                    command.IssueId,
+                    issueId,
                     command.Date,
                     command.Minutes,
                     command.TypeId,
@@ -35,6 +63,8 @@ public sealed class CreateWorkItemCommandHandler(IWorkItemWriter writer, IEventB
 public sealed class CommitWorkLogDraftsCommandHandler(
     IWorkItemWriter writer,
     IWorkItemReader reader,
+    IIssueReader issues,
+    AppConfig config,
     IEventBus events
 ) : ICommandHandler<CommitWorkLogDraftsCommand, CommitResult>
 {
@@ -46,6 +76,7 @@ public sealed class CommitWorkLogDraftsCommandHandler(
         var types = await reader.GetWorkItemTypesAsync(ct).ConfigureAwait(false);
         var created = 0;
         var errors = new List<string>();
+        var notes = new List<string>();
 
         foreach (var draft in command.ConfirmedDrafts)
         {
@@ -70,10 +101,35 @@ public sealed class CommitWorkLogDraftsCommandHandler(
 
             try
             {
+                // This handler writes directly (not via CreateWorkItemCommand), so the
+                // booking rule must be applied per draft here as well.
+                var target = await BookingTargetResolver
+                    .ResolveAsync(issues, config, draft.IssueId, ct)
+                    .ConfigureAwait(false);
+                if (target.Kind is BookingTargetKind.Ambiguous)
+                {
+                    errors.Add(
+                        $"{draft.IssueId}: Feature mit mehreren Task-Teilaufgaben – bitte manuell "
+                            + $"auf eine Task buchen ({string.Join(", ", target.Candidates.Select(c => c.IssueId))})."
+                    );
+                    continue;
+                }
+                if (target.Kind is BookingTargetKind.NoTask)
+                {
+                    errors.Add(
+                        $"{draft.IssueId}: Feature ohne Task-Teilaufgabe – bitte manuell buchen."
+                    );
+                    continue;
+                }
+                if (target.Kind is BookingTargetKind.Redirected)
+                    notes.Add(
+                        $"{draft.IssueId} → {target.TargetIssueId} umgeleitet (Feature → Task)."
+                    );
+
                 var item = await writer
                     .CreateWorkItemAsync(
                         new NewWorkItem(
-                            draft.IssueId,
+                            target.TargetIssueId,
                             draft.Date,
                             draft.Minutes,
                             typeId,
@@ -91,7 +147,7 @@ public sealed class CommitWorkLogDraftsCommandHandler(
             }
         }
 
-        return new CommitResult(created, errors);
+        return new CommitResult(created, errors) { Notes = notes };
     }
 }
 

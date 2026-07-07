@@ -27,6 +27,15 @@ public interface IIssueReader
         string? devLogin,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// One issue with its direct Subtask children (OUTWARD links).
+    /// Null when the issue is not found or not visible to the token.
+    /// </summary>
+    Task<IssueWithChildren?> GetIssueWithChildrenAsync(
+        string issueId,
+        CancellationToken ct = default
+    );
 }
 
 /// <summary>Read port for work items (time bookings) and their types.</summary>

@@ -26,6 +26,16 @@ public sealed record WorkItem(
 
 public sealed record WorkItemType(string Id, string Name);
 
+/// <summary>A direct subtask of an issue (Subtask link, OUTWARD direction).</summary>
+public sealed record IssueChild(string Id, string Summary, string? Type, bool Resolved);
+
+public sealed record IssueWithChildren(
+    string Id,
+    string Summary,
+    string? Type,
+    IReadOnlyList<IssueChild> Subtasks
+);
+
 public sealed record UserInfo(string Login, string FullName);
 
 public static class DurationFormat

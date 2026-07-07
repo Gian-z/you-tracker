@@ -127,6 +127,15 @@ public sealed class GetPresetsQueryHandler(IPresetStore presets)
     ) => Task.FromResult(presets.Load());
 }
 
+public sealed class GetBookingTargetQueryHandler(IIssueReader issues, AppConfig config)
+    : IQueryHandler<GetBookingTargetQuery, BookingTarget>
+{
+    public Task<BookingTarget> HandleAsync(
+        GetBookingTargetQuery query,
+        CancellationToken ct = default
+    ) => BookingTargetResolver.ResolveAsync(issues, config, query.IssueId, ct);
+}
+
 public sealed class GetHygieneFindingsQueryHandler(
     IIssueReader issues,
     IWorkItemReader workItems,

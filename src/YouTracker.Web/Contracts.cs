@@ -11,7 +11,8 @@ public sealed record CreateWorkLogRequest(
     DateOnly Date,
     int Minutes,
     string? TypeId = null,
-    string? Text = null
+    string? Text = null,
+    bool AllowFeature = false
 );
 
 public sealed record CommitWorkLogRequest(

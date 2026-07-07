@@ -4,12 +4,18 @@ using YouTracker.Core.ReadModels;
 
 namespace YouTracker.Core.Application;
 
+/// <summary>
+/// <paramref name="AllowFeature"/>: bookings on Feature issues are redirected to their task
+/// subtask (or rejected when ambiguous/absent) unless the user explicitly confirmed booking
+/// on the feature itself.
+/// </summary>
 public sealed record CreateWorkItemCommand(
     string IssueId,
     DateOnly Date,
     int Minutes,
     string? TypeId,
-    string? Text
+    string? Text,
+    bool AllowFeature = false
 ) : ICommand<WorkItem>;
 
 /// <summary>Writes only the drafts the user explicitly confirmed in the UI.</summary>

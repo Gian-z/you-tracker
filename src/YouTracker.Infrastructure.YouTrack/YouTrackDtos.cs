@@ -18,6 +18,10 @@ internal sealed class IssueDto
     public string? IdReadable { get; set; }
     public string? Summary { get; set; }
     public long Updated { get; set; }
+
+    /// <summary>Resolve timestamp (epoch ms); null while the issue is open.</summary>
+    public long? Resolved { get; set; }
+
     public ProjectDto? Project { get; set; }
     public List<CustomFieldDto>? CustomFields { get; set; }
     public List<IssueLinkDto>? Links { get; set; }

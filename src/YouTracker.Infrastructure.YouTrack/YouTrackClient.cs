@@ -218,6 +218,59 @@ public sealed class YouTrackClient
             .ToList();
     }
 
+    public async Task<IssueWithChildren?> GetIssueWithChildrenAsync(
+        string issueId,
+        CancellationToken ct = default
+    )
+    {
+        // Children of a feature are `Subtask` links with direction OUTWARD ("parent for" —
+        // the mirror of the INWARD traversal in ParentRoadmapvorhaben below).
+        var fields =
+            "idReadable,summary,resolved,customFields(name,value(name)),"
+            + "links(direction,linkType(name),issues(idReadable,summary,resolved,customFields(name,value(name))))";
+        IssueDto issue;
+        try
+        {
+            issue = await GetAsync<IssueDto>(
+                $"issues/{Uri.EscapeDataString(issueId)}?fields={fields}",
+                ct
+            );
+        }
+        catch (YouTrackApiException ex) when (ex.StatusCode is 404)
+        {
+            return null;
+        }
+
+        var children = (issue.Links ?? [])
+            .Where(l =>
+                string.Equals(l.LinkType?.Name, "Subtask", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(l.Direction, "OUTWARD", StringComparison.OrdinalIgnoreCase)
+            )
+            .SelectMany(l => l.Issues ?? [])
+            .Where(c => c.IdReadable is not null)
+            .Select(c => new IssueChild(
+                c.IdReadable!,
+                c.Summary ?? "",
+                TypeOf(c),
+                Resolved: c.Resolved is not null
+            ))
+            .ToList();
+
+        return new IssueWithChildren(
+            issue.IdReadable ?? issueId,
+            issue.Summary ?? "",
+            TypeOf(issue),
+            children
+        );
+
+        static string? TypeOf(IssueDto dto) =>
+            ValueName(
+                dto.CustomFields?.FirstOrDefault(f =>
+                    string.Equals(f.Name, "Type", StringComparison.OrdinalIgnoreCase)
+                )?.Value
+            );
+    }
+
     private static string? ParentRoadmapvorhaben(IssueDto task)
     {
         foreach (var link in task.Links ?? [])

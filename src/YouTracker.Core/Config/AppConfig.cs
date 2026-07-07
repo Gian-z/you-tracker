@@ -11,7 +11,9 @@ public sealed record YouTrackConfig(
     string WebBaseUrl,
     string Token,
     string? IssueQuery = null,
-    string? SprintPoolQuery = null
+    string? SprintPoolQuery = null,
+    IReadOnlyList<string>? FeatureTypes = null,
+    IReadOnlyList<string>? TaskTypes = null
 );
 
 public sealed record AnthropicConfig(string ApiKey, string Model, string CliCommand = "claude")
@@ -54,4 +56,15 @@ public sealed record AppConfig(
 
     public string WebUrlFor(string issueId) =>
         $"{YouTrack.WebBaseUrl.TrimEnd('/')}/issue/{issueId}";
+
+    private static readonly string[] DefaultFeatureTypes = ["Feature"];
+    private static readonly string[] DefaultTaskTypes = ["Task", "Aufgabe"];
+
+    /// <summary>Issue types whose bookings are redirected to a task subtask.</summary>
+    public IReadOnlyList<string> EffectiveFeatureTypes =>
+        YouTrack.FeatureTypes is { Count: > 0 } configured ? configured : DefaultFeatureTypes;
+
+    /// <summary>Issue types that count as bookable task subtasks (German instance default included).</summary>
+    public IReadOnlyList<string> EffectiveTaskTypes =>
+        YouTrack.TaskTypes is { Count: > 0 } configured ? configured : DefaultTaskTypes;
 }

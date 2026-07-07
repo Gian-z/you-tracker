@@ -115,6 +115,7 @@ api.MapGet(
             timezone = cfg.Workday.Timezone,
             webBaseUrl = cfg.YouTrack.WebBaseUrl,
             aiProvider = cfg.Anthropic.HasApiKey ? "anthropic" : "claude-cli",
+            featureTypes = cfg.EffectiveFeatureTypes,
             currentUser = await dispatcher.QueryAsync(new GetCurrentUserQuery(), ct),
         }
 );
@@ -199,10 +200,18 @@ api.MapPost(
                 request.Date,
                 request.Minutes,
                 request.TypeId,
-                request.Text
+                request.Text,
+                request.AllowFeature
             ),
             ct
         )
+);
+
+// Pre-flight for the "bookings land on tasks" rule: redirect hint / picker candidates.
+api.MapGet(
+    "/issues/{issueId}/booking-target",
+    (string issueId, IDispatcher dispatcher, CancellationToken ct, bool refresh = false) =>
+        dispatcher.QueryAsync(new GetBookingTargetQuery(issueId, BypassCache: refresh), ct)
 );
 
 api.MapPost(

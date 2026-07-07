@@ -62,6 +62,19 @@ public sealed record GetSprintPoolQuery(bool BypassCache = false, string? Dev = 
 
 public sealed record GetTimerStateQuery : IQuery<TimerState?>;
 
+/// <summary>
+/// Pre-flight for the "bookings land on tasks" rule: where would a booking on this issue go?
+/// The UI uses this to show the redirect hint / subtask picker before sending the command.
+/// </summary>
+public sealed record GetBookingTargetQuery(string IssueId, bool BypassCache = false)
+    : IQuery<BookingTarget>,
+        ICacheableQuery
+{
+    // `issues:` prefix — evicted on WorkItemCreated like the other issue caches.
+    public string CacheKey => $"issues:bookingtarget:{IssueId}";
+    public TimeSpan Ttl => TimeSpan.FromMinutes(5);
+}
+
 // --- Sprint dashboard (Scrum Master view) ---
 
 public sealed record GetTeamConfigQuery : IQuery<TeamConfig?>;

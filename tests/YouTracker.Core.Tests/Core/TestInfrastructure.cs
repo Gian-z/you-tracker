@@ -80,6 +80,15 @@ public sealed class FakeIssueReader(params Issue[] issues) : IIssueReader
         string? devLogin,
         CancellationToken ct = default
     ) => Task.FromResult<IReadOnlyList<Issue>>(PoolIssues);
+
+    /// <summary>Keyed by issue id; missing key = issue not found (null).</summary>
+    public Dictionary<string, IssueWithChildren?> Children { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<IssueWithChildren?> GetIssueWithChildrenAsync(
+        string issueId,
+        CancellationToken ct = default
+    ) => Task.FromResult(Children.GetValueOrDefault(issueId));
 }
 
 public sealed class FakeWorkItemReader : IWorkItemReader

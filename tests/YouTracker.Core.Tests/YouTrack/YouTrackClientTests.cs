@@ -296,6 +296,86 @@ public sealed class YouTrackClientTests
     }
 
     [Fact]
+    public async Task GetIssueWithChildren_MapsOutwardSubtasksOnly()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(
+            HttpStatusCode.OK,
+            """
+            {
+              "idReadable": "ST6-1000",
+              "summary": "Feature X",
+              "resolved": null,
+              "customFields": [ { "name": "Type", "value": { "name": "Feature" } } ],
+              "links": [
+                {
+                  "direction": "OUTWARD",
+                  "linkType": { "name": "Subtask" },
+                  "issues": [
+                    {
+                      "idReadable": "ST6-1001",
+                      "summary": "Umsetzung",
+                      "resolved": 1751667321000,
+                      "customFields": [ { "name": "Type", "value": { "name": "Task" } } ]
+                    },
+                    {
+                      "idReadable": "ST6-1002",
+                      "summary": "Sub-Feature",
+                      "resolved": null,
+                      "customFields": [ { "name": "Type", "value": { "name": "Feature" } } ]
+                    }
+                  ]
+                },
+                {
+                  "direction": "INWARD",
+                  "linkType": { "name": "Subtask" },
+                  "issues": [ { "idReadable": "ST6-999", "summary": "parent" } ]
+                },
+                {
+                  "direction": "OUTWARD",
+                  "linkType": { "name": "Relates" },
+                  "issues": [ { "idReadable": "ST6-500", "summary": "related" } ]
+                }
+              ]
+            }
+            """
+        );
+
+        var issue = await client.GetIssueWithChildrenAsync("ST6-1000");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.StartsWith(
+            "https://yt.example.com/api/issues/ST6-1000?fields=idReadable,summary,resolved,",
+            request.Uri.AbsoluteUri
+        );
+        Assert.Contains(
+            "links(direction,linkType(name),issues(idReadable,summary,resolved,customFields(name,value(name))))",
+            Uri.UnescapeDataString(request.Uri.AbsoluteUri)
+        );
+
+        Assert.NotNull(issue);
+        Assert.Equal("ST6-1000", issue.Id);
+        Assert.Equal("Feature", issue.Type);
+        // INWARD (parent) and non-Subtask links are ignored; the sub-feature is still listed
+        // as a child (type filtering happens in the resolver).
+        Assert.Equal(2, issue.Subtasks.Count);
+        Assert.Equal("ST6-1001", issue.Subtasks[0].Id);
+        Assert.True(issue.Subtasks[0].Resolved);
+        Assert.Equal("Task", issue.Subtasks[0].Type);
+        Assert.Equal("ST6-1002", issue.Subtasks[1].Id);
+        Assert.False(issue.Subtasks[1].Resolved);
+    }
+
+    [Fact]
+    public async Task GetIssueWithChildren_Returns404AsNull()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.NotFound, """{ "error": "Not Found" }""");
+
+        Assert.Null(await client.GetIssueWithChildrenAsync("ST6-404"));
+    }
+
+    [Fact]
     public async Task ListEndpoints_FollowSkipPagingUntilShortPage()
     {
         var (client, handler) = CreateClient();

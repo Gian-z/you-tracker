@@ -74,7 +74,9 @@ public sealed class JsonConfigStore : IConfigStore
                 Require(dto.YouTrack?.WebBaseUrl, "youTrack.webBaseUrl"),
                 Require(token, "youTrack.token (or the YOUTRACK_TOKEN environment variable)"),
                 FirstNonEmpty(dto.YouTrack?.IssueQuery, null),
-                FirstNonEmpty(dto.YouTrack?.SprintPoolQuery, null)
+                FirstNonEmpty(dto.YouTrack?.SprintPoolQuery, null),
+                dto.YouTrack?.FeatureTypes,
+                dto.YouTrack?.TaskTypes
             ),
             // apiKey is optional: without one, the host uses the Claude Code CLI provider.
             new AnthropicConfig(
@@ -96,7 +98,7 @@ public sealed class JsonConfigStore : IConfigStore
     public string Template =>
         """
             {
-              "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "" },
+              "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "", "featureTypes": ["Feature"], "taskTypes": ["Task", "Aufgabe"] },
               "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
               "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] },
               "git": { "scanRoots": ["C:/cmi-github"], "author": "" }
@@ -134,6 +136,12 @@ public sealed class JsonConfigStore : IConfigStore
 
         /// <summary>Optional query template with $dev placeholder for triage sprint suggestions.</summary>
         public string? SprintPoolQuery { get; set; }
+
+        /// <summary>Issue types treated as Features (bookings get redirected to a task subtask).</summary>
+        public List<string>? FeatureTypes { get; set; }
+
+        /// <summary>Issue types that count as bookable task subtasks.</summary>
+        public List<string>? TaskTypes { get; set; }
     }
 
     private sealed class AnthropicDto

@@ -61,4 +61,35 @@ public sealed record TimerStopResult(
     DateOnly Date
 );
 
-public sealed record CommitResult(int Created, IReadOnlyList<string> Errors);
+public sealed record CommitResult(int Created, IReadOnlyList<string> Errors)
+{
+    /// <summary>Informational messages (e.g. Feature→Task redirects) — not failures.</summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
+}
+
+/// <summary>Where a booking on the requested issue would actually land.</summary>
+public enum BookingTargetKind
+{
+    /// <summary>Book on the requested issue as-is (not a Feature, or unknown issue).</summary>
+    Direct,
+
+    /// <summary>Feature with an unambiguous task subtask — booking is redirected to it.</summary>
+    Redirected,
+
+    /// <summary>Feature with several task subtasks — the user must pick one.</summary>
+    Ambiguous,
+
+    /// <summary>Feature without any task subtask — book on the feature only after explicit confirmation.</summary>
+    NoTask,
+}
+
+public sealed record SubtaskCandidate(string IssueId, string Summary, bool Resolved);
+
+public sealed record BookingTarget(
+    string RequestedIssueId,
+    BookingTargetKind Kind,
+    string TargetIssueId,
+    string? TargetSummary,
+    bool TargetResolved,
+    IReadOnlyList<SubtaskCandidate> Candidates
+);
