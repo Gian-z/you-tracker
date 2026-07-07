@@ -144,6 +144,12 @@ public sealed class GetHygieneFindingsQueryHandler(
         var recent = await workItems
             .GetWorkItemsAsync(query.Dev, today.AddDays(-14), today, ct)
             .ConfigureAwait(false);
-        return MetricsCalculator.Hygiene(open, recent, [.. config.Workday.InProgressStates], today);
+        return MetricsCalculator.Hygiene(
+            open,
+            recent,
+            [.. config.Workday.InProgressStates],
+            today,
+            config.TimeZone
+        );
     }
 }

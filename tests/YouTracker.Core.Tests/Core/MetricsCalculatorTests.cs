@@ -165,6 +165,26 @@ public class MetricsCalculatorTests
     }
 
     [Fact]
+    public void Hygiene_stale_compares_local_date_not_utc_date()
+    {
+        // 2026-06-21T22:30Z is already 2026-06-22 00:30 in Europe/Zurich (+02:00) — exactly
+        // the 14-day threshold day for Monday 2026-07-06, so it must NOT be flagged stale.
+        var zurich = TimeZoneInfo.FindSystemTimeZoneById("Europe/Zurich");
+        var issue = TestData.Issue(
+            "ABC-5",
+            state: "Open",
+            updated: new DateTimeOffset(2026, 6, 21, 22, 30, 0, TimeSpan.Zero)
+        );
+
+        var local = MetricsCalculator.Hygiene([issue], [], ["In Bearbeitung"], Monday, zurich);
+        Assert.Empty(local);
+
+        // Read as a UTC date the same instant falls a day earlier and would be flagged.
+        var utc = MetricsCalculator.Hygiene([issue], [], ["In Bearbeitung"], Monday);
+        Assert.Equal(HygieneKind.Stale, Assert.Single(utc).Kind);
+    }
+
+    [Fact]
     public void Hygiene_matches_in_progress_state_case_insensitively()
     {
         var issue = TestData.Issue("ABC-4", state: "in bearbeitung");

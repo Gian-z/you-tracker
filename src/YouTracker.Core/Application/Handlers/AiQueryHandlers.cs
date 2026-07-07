@@ -228,7 +228,8 @@ public sealed class TriageIssuesQueryHandler(
             open,
             recent,
             [.. config.Workday.InProgressStates],
-            today
+            today,
+            config.TimeZone
         );
 
         // Sprint pool: other devs' / unassigned sprint tasks the dev could pick up (config-driven).

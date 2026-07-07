@@ -121,9 +121,13 @@ public static class MetricsCalculator
         IReadOnlyList<Issue> openIssues,
         IReadOnlyList<WorkItem> recentWorkItems,
         IReadOnlyCollection<string> inProgressStates,
-        DateOnly today
+        DateOnly today,
+        TimeZoneInfo? timeZone = null
     )
     {
+        // `today` is a local calendar date — Updated must be read in the same zone or an
+        // evening update lands on the previous UTC day and flags "stale" a day early.
+        var zone = timeZone ?? TimeZoneInfo.Utc;
         var findings = new List<HygieneFinding>();
         var bookingThreshold = AddWorkdays(today, -NoBookingWorkdays);
         var staleThreshold = today.AddDays(-StaleAfterDays);
@@ -161,14 +165,17 @@ public static class MetricsCalculator
                 );
             }
 
-            if (DateOnly.FromDateTime(issue.Updated.UtcDateTime) < staleThreshold)
+            var updatedLocal = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTime(issue.Updated, zone).DateTime
+            );
+            if (updatedLocal < staleThreshold)
             {
                 findings.Add(
                     new(
                         HygieneKind.Stale,
                         issue.Id,
                         issue.Summary,
-                        $"No update since {issue.Updated:yyyy-MM-dd}"
+                        $"No update since {updatedLocal:yyyy-MM-dd}"
                     )
                 );
             }
