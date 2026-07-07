@@ -125,7 +125,33 @@ public interface IAiProvider
     );
 }
 
-public sealed record TimerState(string IssueId, string IssueSummary, DateTimeOffset StartedUtc);
+/// <summary>
+/// The single running timer. Paused ⇔ <paramref name="PausedAtUtc"/> is set; already-elapsed
+/// time is banked in <paramref name="AccumulatedSeconds"/> (seconds so repeated pausing doesn't
+/// lose up to 30s per segment — rounding happens once, at stop/discard). The optional parameters
+/// keep old three-field timer.json files loading with identical behavior.
+/// </summary>
+public sealed record TimerState(
+    string IssueId,
+    string IssueSummary,
+    DateTimeOffset StartedUtc,
+    int AccumulatedSeconds = 0,
+    DateTimeOffset? PausedAtUtc = null
+)
+{
+    public bool IsPaused => PausedAtUtc is not null;
+
+    public TimeSpan Elapsed(DateTimeOffset now)
+    {
+        var running = IsPaused ? TimeSpan.Zero : now - StartedUtc;
+        if (running < TimeSpan.Zero)
+            running = TimeSpan.Zero; // clock-skew guard
+        return TimeSpan.FromSeconds(AccumulatedSeconds) + running;
+    }
+
+    public int ElapsedMinutes(DateTimeOffset now) =>
+        Math.Max(1, (int)Math.Round(Elapsed(now).TotalMinutes));
+}
 
 /// <summary>Persistence port for the single running timer (survives app restarts).</summary>
 public interface ITimerStore

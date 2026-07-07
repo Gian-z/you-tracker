@@ -62,26 +62,41 @@ export class App {
   }
 
   protected readonly elapsed = computed(() => formatElapsed(this.timer.elapsedSeconds()));
-  protected readonly stopping = signal(false);
+  protected readonly busy = signal(false);
   protected readonly stopResult = signal<TimerStopResult | null>(null);
   protected readonly timerError = signal<string | null>(null);
+  protected readonly confirmDiscard = signal(false);
+  private discardResetHandle: ReturnType<typeof setTimeout> | null = null;
 
+  protected readonly discardLabel = computed(
+    () => `${Math.max(1, Math.round(this.timer.elapsedSeconds() / 60))}m`,
+  );
+
+  /** Stop = open the prefilled booking dialog; the timer store stays until saved/discarded. */
   protected async stopTimer(): Promise<void> {
-    if (this.stopping()) {
-      return;
-    }
-    this.stopping.set(true);
-    this.timerError.set(null);
-    try {
+    await this.timerAction(async () => {
       const result = await this.timer.stop();
       if (result) {
         this.stopResult.set(result);
       }
-    } catch (err) {
-      this.timerError.set((err as Error).message);
-    } finally {
-      this.stopping.set(false);
-    }
+    });
+  }
+
+  protected async togglePause(): Promise<void> {
+    await this.timerAction(() =>
+      this.timer.isPaused() ? this.timer.resume() : this.timer.pause(),
+    );
+  }
+
+  /** First click arms the red "27m verwerfen?" state; a second within 4s discards. */
+  protected armDiscard(): void {
+    this.confirmDiscard.set(true);
+    this.clearDiscardReset();
+    this.discardResetHandle = setTimeout(() => this.confirmDiscard.set(false), 4000);
+  }
+
+  protected async discardTimer(): Promise<void> {
+    await this.timerAction(() => this.timer.discard());
   }
 
   /** Booking confirmed — only now is the persisted timer cleared. Cancel keeps it running. */
@@ -90,6 +105,31 @@ export class App {
       await this.timer.discard();
     } catch (err) {
       this.timerError.set((err as Error).message);
+    }
+  }
+
+  /** Shared in-flight guard; any timer action disarms a pending discard confirm. */
+  private async timerAction(work: () => Promise<void>): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+    this.timerError.set(null);
+    this.confirmDiscard.set(false);
+    this.clearDiscardReset();
+    try {
+      await work();
+    } catch (err) {
+      this.timerError.set((err as Error).message);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  private clearDiscardReset(): void {
+    if (this.discardResetHandle !== null) {
+      clearTimeout(this.discardResetHandle);
+      this.discardResetHandle = null;
     }
   }
 }

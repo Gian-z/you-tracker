@@ -78,6 +78,8 @@ export interface TimerState {
   issueId: string;
   issueSummary: string;
   startedUtc: string;
+  accumulatedSeconds: number;
+  pausedAtUtc: string | null;
 }
 
 export interface TimerStopResult {

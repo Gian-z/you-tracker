@@ -158,7 +158,7 @@ public sealed class StartTimerCommandHandler(ITimerStore store, TimeProvider tim
     {
         if (store.Load() is { } running)
             throw new InvalidOperationException(
-                $"A timer is already running on {running.IssueId}. Stop it first."
+                $"A timer is already {(running.IsPaused ? "paused" : "running")} on {running.IssueId}. Stop it first."
             );
         var state = new TimerState(command.IssueId, command.IssueSummary, time.GetUtcNow());
         store.Save(state);
@@ -178,13 +178,49 @@ public sealed class StopTimerCommandHandler(ITimerStore store, TimeProvider time
         if (store.Load() is not { } running)
             return Task.FromResult<TimerStopResult?>(null);
         // Deliberately no Clear(): a cancelled/failed booking must not lose the elapsed time.
-        var elapsed = Math.Max(
-            1,
-            (int)Math.Round((time.GetUtcNow() - running.StartedUtc).TotalMinutes)
-        );
+        var elapsed = running.ElapsedMinutes(time.GetUtcNow());
         return Task.FromResult<TimerStopResult?>(
             new TimerStopResult(running.IssueId, running.IssueSummary, elapsed, config.Today(time))
         );
+    }
+}
+
+public sealed class PauseTimerCommandHandler(ITimerStore store, TimeProvider time)
+    : ICommandHandler<PauseTimerCommand, TimerState?>
+{
+    public Task<TimerState?> HandleAsync(PauseTimerCommand command, CancellationToken ct = default)
+    {
+        if (store.Load() is not { } running)
+            return Task.FromResult<TimerState?>(null);
+        if (running.IsPaused)
+            return Task.FromResult<TimerState?>(running); // idempotent
+        // No event: the bus is in-process only, and cross-process staleness (web vs TUI)
+        // already exists for start/stop — a paused timer just renders frozen after reload.
+        var now = time.GetUtcNow();
+        var paused = running with
+        {
+            AccumulatedSeconds =
+                running.AccumulatedSeconds
+                + Math.Max(0, (int)(now - running.StartedUtc).TotalSeconds),
+            PausedAtUtc = now,
+        };
+        store.Save(paused);
+        return Task.FromResult<TimerState?>(paused);
+    }
+}
+
+public sealed class ResumeTimerCommandHandler(ITimerStore store, TimeProvider time)
+    : ICommandHandler<ResumeTimerCommand, TimerState?>
+{
+    public Task<TimerState?> HandleAsync(ResumeTimerCommand command, CancellationToken ct = default)
+    {
+        if (store.Load() is not { } running)
+            return Task.FromResult<TimerState?>(null);
+        if (!running.IsPaused)
+            return Task.FromResult<TimerState?>(running); // idempotent
+        var resumed = running with { StartedUtc = time.GetUtcNow(), PausedAtUtc = null };
+        store.Save(resumed);
+        return Task.FromResult<TimerState?>(resumed);
     }
 }
 
@@ -199,10 +235,7 @@ public sealed class DiscardTimerCommandHandler(
         if (store.Load() is not { } running)
             return Task.FromResult(false);
         store.Clear();
-        var elapsed = Math.Max(
-            1,
-            (int)Math.Round((time.GetUtcNow() - running.StartedUtc).TotalMinutes)
-        );
+        var elapsed = running.ElapsedMinutes(time.GetUtcNow());
         events.Publish(new TimerStopped(running.IssueId, running.IssueSummary, elapsed));
         return Task.FromResult(true);
     }

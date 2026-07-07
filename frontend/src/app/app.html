@@ -61,16 +61,58 @@
     <span class="timer-error" (click)="timerError.set(null)" title="Klick zum Ausblenden">{{ err }}</span>
   }
   @if (timer.state(); as t) {
-    <button
-      type="button"
-      class="timer-widget running"
-      (click)="stopTimer()"
-      [disabled]="stopping()"
-      [title]="'Timer stoppen für ' + t.issueId + ' – ' + t.issueSummary"
-    >
-      <span class="timer-dot"></span>
-      ▶ {{ t.issueId }} <span class="timer-clock">{{ elapsed() }}</span>
-    </button>
+    <span class="timer-group">
+      <span
+        class="timer-widget"
+        [class.running]="!timer.isPaused()"
+        [class.paused]="timer.isPaused()"
+        [title]="t.issueId + ' – ' + t.issueSummary"
+      >
+        @if (!timer.isPaused()) {
+          <span class="timer-dot"></span>
+        }
+        {{ timer.isPaused() ? '⏸' : '▶' }} {{ t.issueId }}
+        <span class="timer-clock">{{ elapsed() }}</span>
+      </span>
+      <button
+        type="button"
+        class="timer-btn"
+        (click)="togglePause()"
+        [disabled]="busy()"
+        [title]="timer.isPaused() ? 'Timer fortsetzen' : 'Timer pausieren'"
+      >
+        {{ timer.isPaused() ? '▶' : '⏸' }}
+      </button>
+      <button
+        type="button"
+        class="timer-btn"
+        (click)="stopTimer()"
+        [disabled]="busy()"
+        title="Stoppen und Zeit buchen"
+      >
+        Buchen
+      </button>
+      @if (confirmDiscard()) {
+        <button
+          type="button"
+          class="timer-btn timer-btn--danger"
+          (click)="discardTimer()"
+          [disabled]="busy()"
+        >
+          {{ discardLabel() }} verwerfen?
+        </button>
+      } @else {
+        <button
+          type="button"
+          class="timer-btn"
+          (click)="armDiscard()"
+          [disabled]="busy()"
+          title="Timer ohne Buchung verwerfen"
+        >
+          Verwerfen
+        </button>
+      }
+    </span>
   } @else {
     <span class="timer-widget idle" title="Timer über die Ticket-Liste starten">kein Timer</span>
   }

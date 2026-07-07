@@ -33,6 +33,42 @@ public sealed class FileTimerStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_accepts_old_three_field_json_with_defaults()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(
+            TimerFile,
+            """{ "issueId": "ABC-1", "issueSummary": "x", "startedUtc": "2026-07-06T09:30:00+00:00" }"""
+        );
+        var store = new FileTimerStore(_dir);
+
+        var loaded = store.Load();
+
+        Assert.NotNull(loaded);
+        Assert.Equal("ABC-1", loaded.IssueId);
+        Assert.Equal(0, loaded.AccumulatedSeconds);
+        Assert.Null(loaded.PausedAtUtc);
+        Assert.False(loaded.IsPaused);
+    }
+
+    [Fact]
+    public void Save_then_Load_round_trips_paused_state()
+    {
+        var store = new FileTimerStore(_dir);
+        var state = new TimerState(
+            "ABC-1",
+            "x",
+            new DateTimeOffset(2026, 7, 6, 9, 30, 0, TimeSpan.Zero),
+            AccumulatedSeconds: 2700,
+            PausedAtUtc: new DateTimeOffset(2026, 7, 6, 10, 15, 0, TimeSpan.Zero)
+        );
+
+        store.Save(state);
+
+        Assert.Equal(state, store.Load());
+    }
+
+    [Fact]
     public void Clear_removes_the_persisted_state()
     {
         var store = new FileTimerStore(_dir);

@@ -9,16 +9,23 @@ export class TimerService {
 
   readonly state = signal<TimerState | null>(null);
 
+  readonly isPaused = computed(() => !!this.state()?.pausedAtUtc);
+
+  /** TS mirror of TimerState.Elapsed: banked seconds + running segment (0 while paused). */
   readonly elapsedSeconds = computed(() => {
     const state = this.state();
     if (!state) {
       return 0;
     }
+    const accumulated = state.accumulatedSeconds ?? 0; // ?? guards a not-yet-redeployed backend
+    if (state.pausedAtUtc) {
+      return accumulated;
+    }
     const started = parseUtc(state.startedUtc);
     if (Number.isNaN(started)) {
-      return 0;
+      return accumulated;
     }
-    return Math.max(0, Math.floor((this.now() - started) / 1000));
+    return accumulated + Math.max(0, Math.floor((this.now() - started) / 1000));
   });
 
   constructor() {
@@ -47,6 +54,14 @@ export class TimerService {
   async discard(): Promise<void> {
     await this.api.discardTimer();
     this.state.set(null);
+  }
+
+  async pause(): Promise<void> {
+    this.state.set(await this.api.pauseTimer());
+  }
+
+  async resume(): Promise<void> {
+    this.state.set(await this.api.resumeTimer());
   }
 }
 

@@ -199,18 +199,15 @@ public sealed class App
     {
         if (_timerItem is null || _statusBar is null)
             return;
-        var text = _timer is null ? "■ timer off" : $"▶ {_timer.IssueId} {Elapsed(_timer)}";
+        var text = _timer is null
+            ? "■ timer off"
+            : $"{(_timer.IsPaused ? "⏸" : "▶")} {_timer.IssueId} {FormatElapsed(_timer.Elapsed(DateTimeOffset.UtcNow))}";
         if (_timerItem.Title.ToString() == text)
             return;
         _timerItem.Title = text;
         _statusBar.SetNeedsDisplay();
     }
 
-    private static string Elapsed(TimerState timer)
-    {
-        var elapsed = DateTimeOffset.UtcNow - timer.StartedUtc;
-        if (elapsed < TimeSpan.Zero)
-            elapsed = TimeSpan.Zero;
-        return $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
-    }
+    private static string FormatElapsed(TimeSpan elapsed) =>
+        $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
 }

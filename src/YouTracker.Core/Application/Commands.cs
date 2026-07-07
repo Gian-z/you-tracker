@@ -36,6 +36,12 @@ public sealed record StopTimerCommand : ICommand<TimerStopResult?>;
 /// <summary>Clears the persisted timer. Sent after a successful stop-and-log booking or an explicit discard.</summary>
 public sealed record DiscardTimerCommand : ICommand<bool>;
 
+/// <summary>Pauses the running timer. Null when no timer exists; already paused → no-op returning the state.</summary>
+public sealed record PauseTimerCommand : ICommand<TimerState?>;
+
+/// <summary>Resumes a paused timer. Null when no timer exists; already running → no-op returning the state.</summary>
+public sealed record ResumeTimerCommand : ICommand<TimerState?>;
+
 /// <summary>Creates or updates a booking preset (matched by Id; empty Id = create new).</summary>
 public sealed record SavePresetCommand(BookingPreset Preset) : ICommand<BookingPreset>;
 

@@ -127,6 +127,14 @@ export class ApiService {
     return this.post<boolean>('/api/timer/discard', {});
   }
 
+  pauseTimer(): Promise<TimerState | null> {
+    return this.post<TimerState | null>('/api/timer/pause', {});
+  }
+
+  resumeTimer(): Promise<TimerState | null> {
+    return this.post<TimerState | null>('/api/timer/resume', {});
+  }
+
   createWorklog(request: WorkLogRequest): Promise<WorkItem> {
     return this.post<WorkItem>('/api/worklog', request);
   }

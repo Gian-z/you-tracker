@@ -94,6 +94,14 @@ public static class ServiceCollectionExtensions
             DiscardTimerCommandHandler
         >();
         services.AddTransient<
+            ICommandHandler<PauseTimerCommand, TimerState?>,
+            PauseTimerCommandHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<ResumeTimerCommand, TimerState?>,
+            ResumeTimerCommandHandler
+        >();
+        services.AddTransient<
             ICommandHandler<SavePresetCommand, BookingPreset>,
             SavePresetCommandHandler
         >();

@@ -60,6 +60,12 @@
   justify-content: center;
 }
 
+.timer-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 .timer-widget {
   font-variant-numeric: tabular-nums;
   display: inline-flex;
@@ -68,16 +74,42 @@
   white-space: nowrap;
 }
 
+.timer-widget.running,
+.timer-widget.paused {
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-weight: 600;
+}
+
 .timer-widget.running {
   border-color: var(--green);
   color: var(--green);
   background: var(--green-bg);
-  font-weight: 600;
+}
+
+.timer-widget.paused {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: var(--amber-bg);
 }
 
 .timer-widget.idle {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.timer-btn {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.82rem;
+  border-radius: 999px;
+}
+
+.timer-btn--danger {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--red-bg);
+  font-weight: 600;
 }
 
 .timer-dot {

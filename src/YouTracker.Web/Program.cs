@@ -192,6 +192,24 @@ api.MapPost(
 );
 
 api.MapPost(
+    "/timer/pause",
+    async (IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+    {
+        var state = await dispatcher.SendAsync(new PauseTimerCommand(), ct);
+        await http.Response.WriteAsJsonAsync(state, ct);
+    }
+);
+
+api.MapPost(
+    "/timer/resume",
+    async (IDispatcher dispatcher, HttpContext http, CancellationToken ct) =>
+    {
+        var state = await dispatcher.SendAsync(new ResumeTimerCommand(), ct);
+        await http.Response.WriteAsJsonAsync(state, ct);
+    }
+);
+
+api.MapPost(
     "/worklog",
     (CreateWorkLogRequest request, IDispatcher dispatcher, CancellationToken ct) =>
         dispatcher.SendAsync(
