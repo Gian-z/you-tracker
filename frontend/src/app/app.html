@@ -1,12 +1,22 @@
 <header class="topbar">
   <span class="brand">you-tracker</span>
   <nav class="main-nav">
-    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Dashboard</a>
-    <a routerLink="/tasks" routerLinkActive="active">Tasks</a>
-    <a routerLink="/week" routerLinkActive="active">Week</a>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Heute</a>
+    <a routerLink="/tickets" routerLinkActive="active">Tickets</a>
+    <a routerLink="/woche" routerLinkActive="active">Woche</a>
     <a routerLink="/sprint" routerLinkActive="active">Sprint</a>
-    <a routerLink="/assistant" routerLinkActive="active">Assistant</a>
   </nav>
+  @if (todayStatus.loaded()) {
+    <a
+      routerLink="/"
+      class="today-chip"
+      [class.ok]="todayStatus.reached()"
+      [class.warn]="!todayStatus.reached()"
+      [title]="todayStatus.gapMinutes() > 0 ? 'Heute fehlen noch Buchungen' : 'Tagesziel erreicht'"
+    >
+      {{ todayChip() }}
+    </a>
+  }
   <span class="flex-spacer topbar-search-slot">
     <button type="button" class="search-button" (click)="openSearch()" title="Ticket-Suche (Ctrl+K)">
       🔍 Suche <span class="muted small">Ctrl+K</span>
@@ -21,9 +31,9 @@
   >
     {{ theme.isDark() ? '☀' : '🌙' }}
   </button>
-  <span class="dev-picker" [class.other-dev]="!dev.isSelf()" title="Whose tickets and bookings to show">
+  <span class="dev-picker" [class.other-dev]="!dev.isSelf()" title="Wessen Tickets und Buchungen angezeigt werden">
     @if (dev.users().length > 0) {
-      <select [value]="dev.selectedLogin()" (change)="onDevChange($event)" aria-label="Developer">
+      <select [value]="dev.selectedLogin()" (change)="onDevChange($event)" aria-label="Entwickler">
         @for (u of dev.users(); track u.login) {
           <option
             [value]="u.login"
@@ -38,17 +48,17 @@
         type="text"
         [value]="dev.selectedLogin()"
         (change)="onDevChange($event)"
-        placeholder="dev login"
-        aria-label="Developer login"
+        placeholder="Login"
+        aria-label="Entwickler-Login"
         size="10"
       />
     }
     @if (!dev.isSelf()) {
-      <span class="viewing-badge">viewing {{ dev.selectedName() }}</span>
+      <span class="viewing-badge">zeigt {{ dev.selectedName() }}</span>
     }
   </span>
   @if (timerError(); as err) {
-    <span class="timer-error" (click)="timerError.set(null)" title="Click to dismiss">{{ err }}</span>
+    <span class="timer-error" (click)="timerError.set(null)" title="Klick zum Ausblenden">{{ err }}</span>
   }
   @if (timer.state(); as t) {
     <button
@@ -56,17 +66,17 @@
       class="timer-widget running"
       (click)="stopTimer()"
       [disabled]="stopping()"
-      [title]="'Stop timer for ' + t.issueId + ' – ' + t.issueSummary"
+      [title]="'Timer stoppen für ' + t.issueId + ' – ' + t.issueSummary"
     >
       <span class="timer-dot"></span>
       ▶ {{ t.issueId }} <span class="timer-clock">{{ elapsed() }}</span>
     </button>
   } @else {
-    <span class="timer-widget idle" title="Start a timer from the task list">no timer</span>
+    <span class="timer-widget idle" title="Timer über die Ticket-Liste starten">kein Timer</span>
   }
 </header>
 
-<main class="content">
+<main class="content" [class.content--wide]="wide()">
   <router-outlet />
 </main>
 

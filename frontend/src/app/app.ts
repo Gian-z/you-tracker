@@ -1,12 +1,15 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { IssueSearchDialog } from './dialogs/issue-search-dialog';
 import { LogTimeDialog } from './dialogs/log-time-dialog';
-import { formatElapsed } from './format';
+import { formatClock, formatElapsed } from './format';
 import { TimerStopResult } from './models';
 import { DevService } from './services/dev.service';
 import { ThemeService } from './services/theme.service';
 import { TimerService } from './services/timer.service';
+import { TodayStatusService } from './services/today-status.service';
 
 @Component({
   selector: 'app-root',
@@ -19,10 +22,31 @@ export class App {
   protected readonly timer = inject(TimerService);
   protected readonly dev = inject(DevService);
   protected readonly theme = inject(ThemeService);
+  protected readonly todayStatus = inject(TodayStatusService);
+  private readonly router = inject(Router);
 
   constructor() {
     void this.dev.init();
   }
+
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  /** Sprint and Tickets carry wide tables — give them more room. */
+  protected readonly wide = computed(() => {
+    const url = this.currentUrl();
+    return url.startsWith('/sprint') || url.startsWith('/tickets');
+  });
+
+  protected readonly todayChip = computed(() => {
+    const s = this.todayStatus;
+    return `Heute ${formatClock(s.bookedMinutes())} / ${formatClock(s.targetMinutes())}`;
+  });
 
   protected openSearch(event?: Event): void {
     event?.preventDefault(); // beat the browser's own Ctrl+K binding

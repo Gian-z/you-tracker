@@ -113,3 +113,32 @@
   max-width: 72rem;
   margin: 0 auto;
 }
+
+.content--wide {
+  max-width: 96rem;
+}
+
+.today-chip {
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.today-chip:hover {
+  text-decoration: none;
+  filter: brightness(1.05);
+}
+
+.today-chip.ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.today-chip.warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
