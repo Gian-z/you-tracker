@@ -407,6 +407,56 @@ public sealed class YouTrackClientTests
         Assert.Contains("$skip=50&$top=50", handler.Requests[1].Uri.AbsoluteUri);
     }
 
+    [Theory]
+    [InlineData("ST6-1234", "issue id: ST6-1234")]
+    [InlineData("  st6-1234  ", "issue id: st6-1234")] // trimmed; ids are case-insensitive in queries
+    public async Task SearchIssues_IdShapedInput_SendsIssueIdQuery(string input, string expected)
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.SearchIssuesAsync(input, 25);
+
+        var request = Assert.Single(handler.Requests);
+        var unescaped = Uri.UnescapeDataString(request.Uri.AbsoluteUri);
+        Assert.Contains($"query={expected}&$top=25", unescaped);
+        Assert.Contains($"fields={IssueFieldsMask}", unescaped);
+    }
+
+    [Theory]
+    [InlineData("klapp endpunkte")]
+    [InlineData("project: ST6 #Unresolved sort by: updated desc")] // raw YouTrack syntax passthrough
+    [InlineData("ST6-1234 klapp")] // id regex is anchored — not an exact-id lookup
+    public async Task SearchIssues_FreeText_PassesRawQueryThrough(string input)
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.SearchIssuesAsync(input, 10);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains($"query={input}&$top=10", Uri.UnescapeDataString(request.Uri.AbsoluteUri));
+    }
+
+    [Fact]
+    public async Task SearchIssues_MapsIssues_AndSurfaces400()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, OpenIssuesJson);
+        var issues = await client.SearchIssuesAsync("klapp", 25);
+        Assert.Equal(2, issues.Count);
+        Assert.Equal("ALPHA-1238", issues[0].Id);
+
+        handler.Enqueue(HttpStatusCode.BadRequest, """{ "error": "bad query" }""");
+        var ex = await Assert.ThrowsAsync<YouTrackApiException>(() =>
+            client.SearchIssuesAsync("(((", 25)
+        );
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    private const string IssueFieldsMask =
+        "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))";
+
     [Fact]
     public async Task NonSuccessStatus_ThrowsYouTrackApiExceptionWithDetails()
     {

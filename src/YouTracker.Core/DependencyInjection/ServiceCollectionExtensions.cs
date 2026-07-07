@@ -52,6 +52,10 @@ public static class ServiceCollectionExtensions
             GetBookingTargetQueryHandler
         >();
         services.AddTransient<
+            IQueryHandler<SearchIssuesQuery, IReadOnlyList<TaskListItem>>,
+            SearchIssuesQueryHandler
+        >();
+        services.AddTransient<
             IQueryHandler<DraftWorkLogQuery, WorkLogDraftResult>,
             DraftWorkLogQueryHandler
         >();

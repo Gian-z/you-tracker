@@ -36,6 +36,16 @@ public interface IIssueReader
         string issueId,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// Global search across all of YouTrack — free text or raw YouTrack query syntax.
+    /// Issue-id-shaped input ("ST6-1234") is resolved as an exact id lookup.
+    /// </summary>
+    Task<IReadOnlyList<Issue>> SearchIssuesAsync(
+        string query,
+        int top,
+        CancellationToken ct = default
+    );
 }
 
 /// <summary>Read port for work items (time bookings) and their types.</summary>

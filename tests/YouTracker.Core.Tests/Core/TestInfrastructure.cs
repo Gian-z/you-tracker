@@ -89,6 +89,20 @@ public sealed class FakeIssueReader(params Issue[] issues) : IIssueReader
         string issueId,
         CancellationToken ct = default
     ) => Task.FromResult(Children.GetValueOrDefault(issueId));
+
+    public List<string> SearchTexts { get; } = [];
+    public List<int> SearchTops { get; } = [];
+
+    public Task<IReadOnlyList<Issue>> SearchIssuesAsync(
+        string query,
+        int top,
+        CancellationToken ct = default
+    )
+    {
+        SearchTexts.Add(query);
+        SearchTops.Add(top);
+        return Task.FromResult<IReadOnlyList<Issue>>(Issues);
+    }
 }
 
 public sealed class FakeWorkItemReader : IWorkItemReader

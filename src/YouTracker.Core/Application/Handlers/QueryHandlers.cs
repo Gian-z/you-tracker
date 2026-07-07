@@ -6,18 +6,12 @@ using YouTracker.Core.ReadModels;
 
 namespace YouTracker.Core.Application.Handlers;
 
-public sealed class GetMyOpenIssuesQueryHandler(IIssueReader issues, AppConfig config)
-    : IQueryHandler<GetMyOpenIssuesQuery, IReadOnlyList<TaskListItem>>
+/// <summary>Issue → TaskListItem mapping shared by every issue-list query handler.</summary>
+internal static class TaskListMapper
 {
-    public async Task<IReadOnlyList<TaskListItem>> HandleAsync(
-        GetMyOpenIssuesQuery query,
-        CancellationToken ct = default
-    )
-    {
-        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
-        return
+    public static IReadOnlyList<TaskListItem> Map(IEnumerable<Issue> issues, AppConfig config) =>
         [
-            .. open.Select(i => new TaskListItem(
+            .. issues.Select(i => new TaskListItem(
                 i.Id,
                 i.Summary,
                 i.ProjectKey,
@@ -30,6 +24,35 @@ public sealed class GetMyOpenIssuesQueryHandler(IIssueReader issues, AppConfig c
                 config.WebUrlFor(i.Id)
             )),
         ];
+}
+
+public sealed class GetMyOpenIssuesQueryHandler(IIssueReader issues, AppConfig config)
+    : IQueryHandler<GetMyOpenIssuesQuery, IReadOnlyList<TaskListItem>>
+{
+    public async Task<IReadOnlyList<TaskListItem>> HandleAsync(
+        GetMyOpenIssuesQuery query,
+        CancellationToken ct = default
+    )
+    {
+        var open = await issues.GetOpenIssuesAsync(query.Dev, ct).ConfigureAwait(false);
+        return TaskListMapper.Map(open, config);
+    }
+}
+
+public sealed class SearchIssuesQueryHandler(IIssueReader issues, AppConfig config)
+    : IQueryHandler<SearchIssuesQuery, IReadOnlyList<TaskListItem>>
+{
+    public async Task<IReadOnlyList<TaskListItem>> HandleAsync(
+        SearchIssuesQuery query,
+        CancellationToken ct = default
+    )
+    {
+        var text = query.Text?.Trim();
+        if (text is null || text.Length < 2)
+            return [];
+        var top = Math.Clamp(query.Top, 1, 50);
+        var found = await issues.SearchIssuesAsync(text, top, ct).ConfigureAwait(false);
+        return TaskListMapper.Map(found, config);
     }
 }
 
@@ -66,21 +89,7 @@ public sealed class GetSprintPoolQueryHandler(IIssueReader issues, AppConfig con
     )
     {
         var pool = await issues.GetSprintPoolIssuesAsync(query.Dev, ct).ConfigureAwait(false);
-        return
-        [
-            .. pool.Select(i => new TaskListItem(
-                i.Id,
-                i.Summary,
-                i.ProjectKey,
-                i.Type,
-                i.State,
-                i.Priority,
-                i.EstimateMinutes is { } e ? DurationFormat.ToPresentation(e) : null,
-                i.SpentMinutes is { } s ? DurationFormat.ToPresentation(s) : null,
-                i.Updated,
-                config.WebUrlFor(i.Id)
-            )),
-        ];
+        return TaskListMapper.Map(pool, config);
     }
 }
 

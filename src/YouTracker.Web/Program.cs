@@ -207,6 +207,30 @@ api.MapPost(
         )
 );
 
+// Global ticket search (free text, YouTrack query syntax, or an issue id) — for booking
+// on tickets outside the configured scope. A user-typed broken query must not surface
+// as the generic 502, so the YouTrack 400 is translated here.
+api.MapGet(
+    "/issues/search",
+    async (IDispatcher dispatcher, string q, CancellationToken ct, int top = 25) =>
+    {
+        try
+        {
+            return Results.Ok(await dispatcher.QueryAsync(new SearchIssuesQuery(q, top), ct));
+        }
+        catch (YouTrackApiException ex) when (ex.StatusCode == 400)
+        {
+            return Results.BadRequest(
+                new
+                {
+                    error = "YouTrack konnte die Suchanfrage nicht verarbeiten. "
+                        + "Tipp: einfacher Text oder eine Ticket-ID wie ST6-1234.",
+                }
+            );
+        }
+    }
+);
+
 // Pre-flight for the "bookings land on tasks" rule: redirect hint / picker candidates.
 api.MapGet(
     "/issues/{issueId}/booking-target",

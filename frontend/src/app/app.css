@@ -46,6 +46,20 @@
   line-height: 1;
 }
 
+.topbar-search-slot {
+  display: flex;
+  justify-content: center;
+}
+
+.search-button {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  min-width: 12rem;
+  justify-content: center;
+}
+
 .timer-widget {
   font-variant-numeric: tabular-nums;
   display: inline-flex;

@@ -7,7 +7,11 @@
     <a routerLink="/sprint" routerLinkActive="active">Sprint</a>
     <a routerLink="/assistant" routerLinkActive="active">Assistant</a>
   </nav>
-  <span class="flex-spacer"></span>
+  <span class="flex-spacer topbar-search-slot">
+    <button type="button" class="search-button" (click)="openSearch()" title="Ticket-Suche (Ctrl+K)">
+      🔍 Suche <span class="muted small">Ctrl+K</span>
+    </button>
+  </span>
   <button
     type="button"
     class="icon theme-toggle"
@@ -65,6 +69,10 @@
 <main class="content">
   <router-outlet />
 </main>
+
+@if (searchOpen()) {
+  <app-issue-search-dialog (closed)="searchOpen.set(false)" />
+}
 
 @if (stopResult(); as r) {
   <app-log-time-dialog

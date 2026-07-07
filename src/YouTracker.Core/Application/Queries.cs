@@ -63,6 +63,14 @@ public sealed record GetSprintPoolQuery(bool BypassCache = false, string? Dev = 
 public sealed record GetTimerStateQuery : IQuery<TimerState?>;
 
 /// <summary>
+/// Global ticket search (free text, YouTrack query syntax, or an issue id) — for booking
+/// on tickets outside the configured scope. Deliberately not cached: interactive per-keystroke
+/// queries would flood the cache with unbounded keys.
+/// </summary>
+public sealed record SearchIssuesQuery(string Text, int Top = 25)
+    : IQuery<IReadOnlyList<TaskListItem>>;
+
+/// <summary>
 /// Pre-flight for the "bookings land on tasks" rule: where would a booking on this issue go?
 /// The UI uses this to show the redirect hint / subtask picker before sending the command.
 /// </summary>

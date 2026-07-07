@@ -64,6 +64,10 @@ export class ApiService {
     return this.get<TaskListItem[]>('/api/issues', this.withDev({ refresh: String(refresh) }, dev));
   }
 
+  searchIssues(q: string, top = 25): Promise<TaskListItem[]> {
+    return this.get<TaskListItem[]>('/api/issues/search', { q, top: String(top) });
+  }
+
   getOverview(from: string, to: string, refresh = false, dev: string | null = null): Promise<TimeOverview> {
     return this.get<TimeOverview>(
       '/api/time/overview',

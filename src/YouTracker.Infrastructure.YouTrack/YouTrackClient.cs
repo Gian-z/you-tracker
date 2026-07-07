@@ -218,6 +218,30 @@ public sealed class YouTrackClient
             .ToList();
     }
 
+    // Project keys may contain digits after the first letter (ST6-1234, XBOX-594).
+    private static readonly System.Text.RegularExpressions.Regex IssueIdPattern = new(
+        @"^[A-Za-z][A-Za-z0-9]*-\d+$",
+        System.Text.RegularExpressions.RegexOptions.Compiled
+    );
+
+    public async Task<IReadOnlyList<Issue>> SearchIssuesAsync(
+        string query,
+        int top,
+        CancellationToken ct = default
+    )
+    {
+        var trimmed = query.Trim();
+        // Id-shaped input → exact lookup (list-shaped response; a missing id yields []
+        // instead of a 404). Anything else is passed through untouched — no parentheses
+        // or sort appended, the live instance rejects some composed queries.
+        var raw = IssueIdPattern.IsMatch(trimmed) ? $"issue id: {trimmed}" : trimmed;
+        var issues = await GetAsync<List<IssueDto>>(
+            $"issues?query={Uri.EscapeDataString(raw)}&$top={top}&fields={IssueFields}",
+            ct
+        );
+        return issues.Select(MapIssue).ToList();
+    }
+
     public async Task<IssueWithChildren?> GetIssueWithChildrenAsync(
         string issueId,
         CancellationToken ct = default

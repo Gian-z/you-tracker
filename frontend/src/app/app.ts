@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { IssueSearchDialog } from './dialogs/issue-search-dialog';
 import { LogTimeDialog } from './dialogs/log-time-dialog';
 import { formatElapsed } from './format';
 import { TimerStopResult } from './models';
@@ -9,7 +10,8 @@ import { TimerService } from './services/timer.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogTimeDialog],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogTimeDialog, IssueSearchDialog],
+  host: { '(document:keydown.control.k)': 'openSearch($event)' },
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -22,11 +24,17 @@ export class App {
     void this.dev.init();
   }
 
+  protected openSearch(event?: Event): void {
+    event?.preventDefault(); // beat the browser's own Ctrl+K binding
+    this.searchOpen.set(true);
+  }
+
   protected onDevChange(event: Event): void {
     this.dev.select((event.target as HTMLSelectElement | HTMLInputElement).value);
   }
 
   protected readonly elapsed = computed(() => formatElapsed(this.timer.elapsedSeconds()));
+  protected readonly searchOpen = signal(false);
   protected readonly stopping = signal(false);
   protected readonly stopResult = signal<TimerStopResult | null>(null);
   protected readonly timerError = signal<string | null>(null);
