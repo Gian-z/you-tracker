@@ -33,9 +33,9 @@ const AMPEL_LABEL: Record<AmpelStatus, string> = {
             }
           </select>
         </label>
-        <button type="button" (click)="load(true)" [disabled]="loading()">Refresh</button>
-        <button type="button" (click)="absenceEditorOpen.set(!absenceEditorOpen())">
-          Absences ({{ currentAbsences().length }})
+        <button type="button" (click)="load(true)" [disabled]="loading()">Aktualisieren</button>
+        <button type="button" (click)="openAbsenceEditor()">
+          Abwesenheiten ({{ currentAbsences().length }})
         </button>
         <span class="flex-spacer"></span>
         <button type="button" (click)="generateVerdicts()" [disabled]="aiBusy() || loading() || !dashboard()">
@@ -46,39 +46,15 @@ const AMPEL_LABEL: Record<AmpelStatus, string> = {
       @if (error(); as err) {
         <div class="banner error">
           {{ err }}
-          <button type="button" class="link" (click)="error.set(null)">dismiss</button>
+          <button type="button" class="link" (click)="error.set(null)">schliessen</button>
         </div>
       }
       @if (aiBusy()) {
-        <div class="banner info"><span class="spinner"></span> Claude schreibt das Fazit… this can take a minute</div>
-      }
-
-      @if (absenceEditorOpen()) {
-        <section class="card absence-editor">
-          <h2>Absences — {{ sprintName() }}</h2>
-          @for (a of editAbsences(); track $index) {
-            <div class="absence-row">
-              <select [ngModel]="a.login" (ngModelChange)="patchAbsence($index, 'login', $event)">
-                @for (m of team()?.members ?? []; track m.login) {
-                  <option [value]="m.login">{{ m.login }}</option>
-                }
-              </select>
-              <input type="date" [ngModel]="a.from" (ngModelChange)="patchAbsence($index, 'from', $event)" />
-              <input type="date" [ngModel]="a.to" (ngModelChange)="patchAbsence($index, 'to', $event)" />
-              <button type="button" class="icon" title="Remove" (click)="removeAbsence($index)">×</button>
-            </div>
-          } @empty {
-            <div class="muted small">No absences recorded.</div>
-          }
-          <div class="toolbar">
-            <button type="button" (click)="addAbsence()">+ Add</button>
-            <button type="button" class="primary" (click)="saveAbsences()" [disabled]="savingAbsences()">Save</button>
-          </div>
-        </section>
+        <div class="banner info"><span class="spinner"></span> Claude schreibt das Fazit… das kann eine Minute dauern</div>
       }
 
       @if (loading()) {
-        <div class="loading"><span class="spinner"></span> Loading sprint data…</div>
+        <div class="loading"><span class="spinner"></span> Sprint-Daten laden…</div>
       } @else if (dashboard(); as d) {
         <!-- S1: heatmap devs × days -->
         <section class="card">
@@ -125,8 +101,12 @@ const AMPEL_LABEL: Record<AmpelStatus, string> = {
           @for (g of d.gaps; track g.login) {
             <div class="gap-row" [title]="g.name">
               <span class="gap-label">{{ g.login }}</span>
-              <span class="gap-track">
-                <span class="gap-bar" [style.width.%]="Math.min(100, g.attainmentPercent)"></span>
+              <span class="meter tall">
+                <span
+                  class="meter-fill"
+                  [class.ok]="g.attainmentPercent >= 100"
+                  [style.width.%]="Math.min(100, g.attainmentPercent)"
+                ></span>
               </span>
               <span class="gap-value">
                 {{ g.attainmentPercent }}% · {{ dur(g.roadmapMinutes) }} / {{ dur(g.targetMinutes) }}
@@ -205,10 +185,43 @@ const AMPEL_LABEL: Record<AmpelStatus, string> = {
         </section>
       } @else {
         <div class="banner">
-          No team config found. Create <code>team.json</code> next to config.json (see README).
+          Keine Team-Konfiguration gefunden. <code>team.json</code> neben config.json anlegen (siehe README).
         </div>
       }
     </div>
+
+    @if (absenceEditorOpen()) {
+      <div class="overlay" (click)="absenceEditorOpen.set(false)">
+        <div class="dialog absence-editor" role="dialog" aria-label="Abwesenheiten" (click)="$event.stopPropagation()">
+          <h2>Abwesenheiten — {{ sprintName() }}</h2>
+          @for (a of editAbsences(); track $index) {
+            <div class="absence-row">
+              <select [ngModel]="a.login" (ngModelChange)="patchAbsence($index, 'login', $event)">
+                @for (m of team()?.members ?? []; track m.login) {
+                  <option [value]="m.login">{{ m.login }}</option>
+                }
+              </select>
+              <input type="date" [ngModel]="a.from" (ngModelChange)="patchAbsence($index, 'from', $event)" />
+              <input type="date" [ngModel]="a.to" (ngModelChange)="patchAbsence($index, 'to', $event)" />
+              <button type="button" class="icon" title="Entfernen" (click)="removeAbsence($index)">×</button>
+            </div>
+          } @empty {
+            <div class="muted small">Keine Abwesenheiten erfasst.</div>
+          }
+          <div class="dialog-actions">
+            <button type="button" (click)="addAbsence()">+ Hinzufügen</button>
+            <span class="flex-spacer"></span>
+            <button type="button" class="secondary" (click)="absenceEditorOpen.set(false)">Abbrechen</button>
+            <button type="button" class="primary" (click)="saveAbsences()" [disabled]="savingAbsences()">
+              @if (savingAbsences()) {
+                <span class="spinner"></span>
+              }
+              Speichern
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class SprintPage {
@@ -286,6 +299,11 @@ export class SprintPage {
 
   verdictText(login: string): string | null {
     return this.verdicts().find((v) => v.login.toLowerCase() === login.toLowerCase())?.text ?? null;
+  }
+
+  openAbsenceEditor(): void {
+    this.editAbsences.set([...this.currentAbsences()]);
+    this.absenceEditorOpen.set(true);
   }
 
   addAbsence(): void {

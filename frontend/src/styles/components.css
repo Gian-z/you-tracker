@@ -819,48 +819,6 @@
   align-content: start;
 }
 
-.dist-row {
-  display: grid;
-  grid-template-columns: 9rem 1fr 2rem;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0.3rem 0;
-  font-size: 0.85rem;
-}
-
-.dist-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dist-count {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-/* legacy bar pair — superseded by .meter/.meter-fill, kept until dashboard/sprint migrate */
-.dist-track,
-.gap-track {
-  background: color-mix(in srgb, var(--muted) 14%, transparent);
-  border-radius: 4px;
-  height: 12px;
-  overflow: hidden;
-}
-
-.gap-track {
-  height: 14px;
-}
-
-.dist-bar,
-.gap-bar {
-  display: block;
-  height: 100%;
-  min-width: 4px;
-  background: var(--accent);
-  border-radius: 0 4px 4px 0;
-}
-
 .pool-row {
   display: flex;
   gap: var(--space-2);
