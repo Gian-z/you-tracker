@@ -147,9 +147,12 @@ public sealed class GitCommitActivityReader(AppConfig config) : ICommitActivityR
         timeoutCts.CancelAfter(PerRepoTimeout);
         try
         {
-            var stdout = await process
-                .StandardOutput.ReadToEndAsync(timeoutCts.Token)
-                .ConfigureAwait(false);
+            // stderr must be drained concurrently: a chatty git (e.g. corrupt repo warnings)
+            // fills the pipe buffer and blocks before ever closing stdout.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(timeoutCts.Token);
+            var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
+            var stdout = await stdoutTask.ConfigureAwait(false);
+            await stderrTask.ConfigureAwait(false);
             await process.WaitForExitAsync(timeoutCts.Token).ConfigureAwait(false);
             if (process.ExitCode != 0)
                 throw new InvalidOperationException($"git exited with {process.ExitCode}");
