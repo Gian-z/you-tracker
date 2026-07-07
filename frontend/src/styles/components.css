@@ -635,6 +635,45 @@
   margin-bottom: var(--space-4);
 }
 
+.dashboard .hero-tiles {
+  grid-template-columns: 2fr 1.4fr 1fr;
+  margin-bottom: 0;
+}
+
+.hero-target {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.hero-meter {
+  margin: var(--space-2) 0 0.4rem;
+}
+
+.week-strip {
+  display: flex;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0.4rem;
+}
+
+.week-cell {
+  flex: 1;
+  text-align: center;
+  padding: 0.15rem 0;
+  border-radius: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.week-cell:hover {
+  text-decoration: none;
+  filter: brightness(1.06);
+}
+
+.row-actions.always-visible .icon {
+  visibility: visible;
+}
+
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));

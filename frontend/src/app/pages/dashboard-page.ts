@@ -1,13 +1,23 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { InlineBook } from '../components/inline-book';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
 import { LogTimeDialog } from '../dialogs/log-time-dialog';
 import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-dialog';
-import { addDays, formatClock, formatDuration, formatScore, startOfWeek, toIsoDate } from '../format';
+import {
+  addDays,
+  formatClock,
+  formatDayLabel,
+  formatDuration,
+  formatScore,
+  startOfWeek,
+  toIsoDate,
+} from '../format';
 import {
   BookingPreset,
   BookingTarget,
+  DaySummary,
   DraftResult,
   TaskListItem,
   TimeOverview,
@@ -18,73 +28,167 @@ import { ApiService } from '../services/api.service';
 import { BookingService } from '../services/booking.service';
 import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
+import { SearchService } from '../services/search.service';
 import { TimerService } from '../services/timer.service';
 
-interface StateCount {
-  state: string;
-  count: number;
-}
+type AiAction = 'draft' | 'gaps' | 'summary-day' | 'summary-week' | 'triage';
 
-type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
+const TOP_TICKET_COUNT = 5;
 
-/** Single-page overview: KPIs, my sprint tasks, status distribution, sprint pool, today's bookings, AI. */
+/**
+ * "Heute" cockpit: answers "habe ich heute/diese Woche alles gebucht?" at a glance
+ * and is the fastest booking surface (presets, inline booking, search, assistant).
+ */
 @Component({
   selector: 'app-dashboard-page',
-  imports: [FormsModule, DraftReviewDialog, LogTimeDialog, SubtaskPickerDialog, InlineBook],
+  imports: [
+    FormsModule,
+    RouterLink,
+    DraftReviewDialog,
+    LogTimeDialog,
+    SubtaskPickerDialog,
+    InlineBook,
+  ],
   template: `
     <div class="page dashboard">
       @if (error(); as err) {
         <div class="banner error">
           {{ err }}
-          <button type="button" class="link" (click)="error.set(null)">dismiss</button>
+          <button type="button" class="link" (click)="error.set(null)">schliessen</button>
         </div>
       }
       @if (notice(); as n) {
         <div class="banner success">
           {{ n }}
-          <button type="button" class="link" (click)="notice.set(null)">dismiss</button>
+          <button type="button" class="link" (click)="notice.set(null)">schliessen</button>
         </div>
       }
 
-      <!-- KPI stat tiles: hero number, caption; amber only when a gap exists (with text). -->
-      <div class="tiles">
-        <div class="tile">
-          <div class="tile-caption">Today</div>
-          <div class="tile-value">{{ clock(todayBooked()) }}</div>
+      <!-- Row 1: today hero meter · week strip · fokus -->
+      <div class="tiles hero-tiles">
+        <div class="tile hero-tile">
+          <div class="tile-caption">Heute</div>
+          <div class="tile-value">
+            {{ clock(todayBooked()) }} <span class="muted hero-target">/ {{ clock(targetToday()) }}</span>
+          </div>
+          <div class="meter hero-meter">
+            <span
+              class="meter-fill"
+              [class.ok]="todayGap() === 0 && targetToday() > 0"
+              [style.width.%]="todayPercent()"
+            ></span>
+          </div>
           <div class="tile-sub muted">
-            of {{ clock(targetToday()) }}
             @if (todayGap() > 0) {
-              <span class="badge amber">gap {{ dur(todayGap()) }}</span>
+              <span class="badge amber">Lücke {{ dur(todayGap()) }}</span>
+            } @else if (targetToday() > 0) {
+              <span class="badge green">Tagesziel erreicht</span>
             }
           </div>
         </div>
         <div class="tile">
-          <div class="tile-caption">Week</div>
+          <div class="tile-caption">Woche</div>
           <div class="tile-value">{{ clock(week()?.totalBookedMinutes ?? 0) }}</div>
-          <div class="tile-sub muted">of {{ clock(week()?.totalTargetMinutes ?? 0) }}</div>
+          <div class="week-strip" title="Zur Wochenansicht">
+            @for (d of weekdays(); track d.date) {
+              <a
+                routerLink="/woche"
+                class="week-cell"
+                [class]="'week-cell heat-' + dayState(d)"
+                [title]="dayLabel(d.date) + ': ' + clock(d.bookedMinutes) + ' / ' + clock(d.targetMinutes)"
+              >
+                {{ dayLetter(d.date) }}
+              </a>
+            }
+          </div>
+          <div class="tile-sub muted">von {{ clock(week()?.totalTargetMinutes ?? 0) }}</div>
         </div>
         <div class="tile">
           <div class="tile-caption">Fokus-Score</div>
           <div class="tile-value">{{ score(week()?.averageFokusScore ?? null) }}</div>
-          <div class="tile-sub muted">week average</div>
-        </div>
-        <div class="tile">
-          <div class="tile-caption">My tickets</div>
-          <div class="tile-value">{{ issues().length }}</div>
-          <div class="tile-sub muted">from your query</div>
+          <div class="tile-sub muted">Wochenschnitt</div>
         </div>
       </div>
 
-      <div class="dash-grid">
-        <!-- My sprint tasks -->
+      <!-- Row 2: quick booking -->
+      @if (dev.isSelf()) {
         <section class="card">
-          <h2>My tickets <button type="button" class="link small" (click)="load(true)">refresh</button></h2>
+          <h2>Schnellbuchung</h2>
+          <div class="presets-strip">
+            @for (p of presets(); track p.id) {
+              <span class="preset-chip" [class.busy]="bookingPresetId() === p.id">
+                <button
+                  type="button"
+                  class="preset-book"
+                  [disabled]="bookingPresetId() !== null"
+                  (click)="bookPreset(p)"
+                  [title]="p.issueId + ' · bucht ' + dur(p.minutes) + ' für heute'"
+                >
+                  {{ p.name }} · {{ dur(p.minutes) }}
+                </button>
+                <button
+                  type="button"
+                  class="preset-delete"
+                  title="Preset löschen"
+                  [disabled]="bookingPresetId() !== null"
+                  (click)="deletePreset(p)"
+                >
+                  ×
+                </button>
+              </span>
+            } @empty {
+              <span class="muted small">
+                Keine Presets — im Buchen-Dialog «Als Preset speichern» anhaken.
+              </span>
+            }
+            <span class="flex-spacer"></span>
+            <button type="button" (click)="search.open.set(true)" title="Ticket ausserhalb des eigenen Scopes suchen">
+              🔍 Anderes Ticket… <span class="muted small">Ctrl+K</span>
+            </button>
+          </div>
+        </section>
+      }
+
+      <!-- Row 3: today's bookings | top tickets -->
+      <div class="dash-grid">
+        <section class="card">
+          <h2>Heutige Buchungen</h2>
+          @if (todayItems().length > 0) {
+            <table class="data-table compact">
+              <tbody>
+                @for (item of todayItems(); track item.id) {
+                  <tr>
+                    <td class="nowrap"><span class="issue-id">{{ item.issueId }}</span></td>
+                    <td class="summary-cell">{{ item.text || item.issueSummary }}</td>
+                    <td class="num nowrap">{{ dur(item.minutes) }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td></td>
+                  <td>Total</td>
+                  <td class="num nowrap">{{ dur(todayBooked()) }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          } @else {
+            <div class="muted small">Heute noch nichts gebucht.</div>
+          }
+        </section>
+
+        <section class="card">
+          <h2>
+            Top-Tickets
+            <span class="flex-spacer"></span>
+            <a routerLink="/tickets" class="small">Alle Tickets →</a>
+          </h2>
           @if (loading()) {
-            <div class="loading"><span class="spinner"></span> Loading…</div>
+            <div class="loading"><span class="spinner"></span> Laden…</div>
           } @else {
             <table class="data-table compact">
               <tbody>
-                @for (t of issues(); track t.issueId) {
+                @for (t of topTickets(); track t.issueId) {
                   <tr>
                     <td class="nowrap">
                       <a [href]="t.webUrl" target="_blank" rel="noopener">{{ t.issueId }}</a>
@@ -99,132 +203,105 @@ type AiAction = 'draft' | 'gaps' | 'summary' | 'triage';
                         <app-inline-book [issue]="t" />
                       </td>
                     }
-                    <td class="nowrap row-actions">
+                    <td class="nowrap row-actions always-visible">
                       @if (dev.isSelf()) {
-                        <button type="button" class="icon" title="Start timer" (click)="start(t)">▶</button>
-                        <button type="button" class="icon" title="Log time" (click)="logIssue.set(t)">✎</button>
+                        <button type="button" class="icon" title="Timer starten" (click)="start(t)">▶</button>
+                        <button type="button" class="icon" title="Zeit buchen" (click)="logIssue.set(t)">✎</button>
                       }
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td class="muted empty-cell">No tickets.</td></tr>
+                  <tr><td class="muted empty-cell">Keine Tickets.</td></tr>
                 }
               </tbody>
             </table>
           }
         </section>
+      </div>
 
-        <!-- Status distribution: one series, single hue; label = identity, length = magnitude. -->
-        <section class="card">
-          <h2>Status</h2>
-          @for (s of stateCounts(); track s.state) {
-            <div class="dist-row">
-              <span class="dist-label">{{ s.state }}</span>
-              <span class="dist-track">
-                <span class="dist-bar" [style.width.%]="(s.count / maxStateCount()) * 100"></span>
-              </span>
-              <span class="dist-count">{{ s.count }}</span>
-            </div>
-          } @empty {
-            <div class="muted small">No data.</div>
+      <!-- Row 4: assistant -->
+      <section class="card">
+        <h2>Assistent</h2>
+        <textarea
+          rows="2"
+          [(ngModel)]="freeText"
+          placeholder="Beschreibe deinen Tag… ('vormittags XBOX-587 Testing, nachmittags Reviews')"
+          [disabled]="aiBusy() !== null"
+        ></textarea>
+        <div class="toolbar wrap">
+          <label class="inline-label">
+            Datum
+            <input type="date" [(ngModel)]="aiDate" [disabled]="aiBusy() !== null" />
+          </label>
+          <button type="button" class="primary" (click)="ai('draft')" [disabled]="aiBusy() !== null || !freeText().trim()">
+            Arbeitslog entwerfen
+          </button>
+          <button type="button" (click)="ai('gaps')" [disabled]="aiBusy() !== null">Wochenlücken füllen</button>
+          <button type="button" (click)="ai('summary-day')" [disabled]="aiBusy() !== null">Tag zusammenfassen</button>
+          <button type="button" (click)="ai('summary-week')" [disabled]="aiBusy() !== null">Woche zusammenfassen</button>
+          <button type="button" (click)="ai('triage')" [disabled]="aiBusy() !== null">Triage</button>
+        </div>
+        @if (aiBusy()) {
+          <div class="banner info"><span class="spinner"></span> Claude denkt nach… das kann eine Minute dauern</div>
+        }
+        @if (summaryText(); as text) {
+          <div class="summary-output">{{ text }}</div>
+        }
+        @if (triageResult(); as t) {
+          @if (t.focusSuggestion) {
+            <div class="focus-suggestion"><strong>Fokus:</strong> {{ t.focusSuggestion }}</div>
           }
-
-          <h2 class="mt">Unclaimed sprint tasks</h2>
-          @for (t of pool(); track t.issueId) {
-            <div class="pool-row">
-              <a [href]="t.webUrl" target="_blank" rel="noopener" class="issue-id">{{ t.issueId }}</a>
-              <span class="summary-cell small">{{ t.summary }}</span>
-              <span class="muted small nowrap">{{ t.estimate ?? '' }}</span>
-            </div>
-          } @empty {
-            <div class="muted small">None (or no pool query configured).</div>
-          }
-        </section>
-
-        <!-- Right column: today's bookings with the assistant stacked beneath -->
-        <div class="dash-stack">
-        <section class="card">
-          <h2>Today's bookings</h2>
-          @if (todayItems().length > 0) {
-            <table class="data-table compact">
-              <tbody>
-                @for (item of todayItems(); track item.id) {
-                  <tr>
-                    <td class="nowrap"><span class="issue-id">{{ item.issueId }}</span></td>
-                    <td class="summary-cell">{{ item.text || item.issueSummary }}</td>
-                    <td class="num nowrap">{{ dur(item.minutes) }}</td>
-                  </tr>
+          <ol class="triage-list">
+            @for (entry of t.ranked; track entry.issueId) {
+              <li>
+                <div class="triage-head">
+                  <span class="rank">#{{ entry.rank }}</span>
+                  @if (issueUrl(entry.issueId); as url) {
+                    <a [href]="url" target="_blank" rel="noopener" class="issue-id">{{ entry.issueId }}</a>
+                  } @else {
+                    <span class="issue-id">{{ entry.issueId }}</span>
+                  }
+                  <span>{{ entry.summary }}</span>
+                  <span class="muted small">Score {{ entry.score }}</span>
+                </div>
+                @if (entry.reasons.length > 0) {
+                  <ul class="reasons small muted">
+                    @for (reason of entry.reasons; track $index) {
+                      <li>{{ reason }}</li>
+                    }
+                  </ul>
                 }
-              </tbody>
-            </table>
-          } @else {
-            <div class="muted small">Nothing booked today yet.</div>
-          }
-          @if (dev.isSelf() && presets().length > 0) {
-            <div class="presets-strip">
-              @for (p of presets(); track p.id) {
-                <span class="preset-chip" [class.busy]="bookingPresetId() === p.id">
-                  <button
-                    type="button"
-                    class="preset-book"
-                    [disabled]="bookingPresetId() !== null"
-                    (click)="bookPreset(p)"
-                    [title]="p.issueId + ' · books ' + dur(p.minutes) + ' for today'"
-                  >
-                    {{ p.name }} · {{ dur(p.minutes) }}
-                  </button>
-                </span>
-              }
-            </div>
-          }
-        </section>
-
-        <!-- AI panel -->
-        <section class="card">
-          <h2>Assistant</h2>
-          <textarea
-            rows="2"
-            [(ngModel)]="freeText"
-            placeholder="Describe your day… ('morning XBOX-587 testing, afternoon reviews')"
-            [disabled]="aiBusy() !== null"
-          ></textarea>
-          <div class="toolbar wrap">
-            <button type="button" (click)="ai('draft')" [disabled]="aiBusy() !== null || !freeText().trim()">Draft work log</button>
-            <button type="button" (click)="ai('gaps')" [disabled]="aiBusy() !== null">Fill week gaps</button>
-            <button type="button" (click)="ai('summary')" [disabled]="aiBusy() !== null">Summarize day</button>
-            <button type="button" (click)="ai('triage')" [disabled]="aiBusy() !== null">Triage</button>
-          </div>
-          @if (aiBusy(); as action) {
-            <div class="banner info"><span class="spinner"></span> Claude is thinking ({{ action }})… this can take a minute</div>
-          }
-          @if (summaryText(); as text) {
-            <div class="summary-output">{{ text }}</div>
-          }
-          @if (triageResult(); as t) {
-            @if (t.focusSuggestion) {
-              <div class="focus-suggestion"><strong>Focus:</strong> {{ t.focusSuggestion }}</div>
+              </li>
             }
-            <ol class="triage-list compact-list">
-              @for (entry of t.ranked.slice(0, 5); track entry.issueId) {
-                <li><span class="rank">#{{ entry.rank }}</span> <span class="issue-id">{{ entry.issueId }}</span> {{ entry.summary }}</li>
+          </ol>
+          @if (t.sprintSuggestions.length > 0) {
+            <h3 class="sprint-suggestions-title">Vorschläge aus dem Sprint-Pool (unbeansprucht)</h3>
+            <ol class="triage-list sprint-suggestions">
+              @for (entry of t.sprintSuggestions; track entry.issueId) {
+                <li>
+                  <div class="triage-head">
+                    <span class="badge green">übernehmen?</span>
+                    @if (issueUrl(entry.issueId); as url) {
+                      <a [href]="url" target="_blank" rel="noopener" class="issue-id">{{ entry.issueId }}</a>
+                    } @else {
+                      <span class="issue-id">{{ entry.issueId }}</span>
+                    }
+                    <span>{{ entry.summary }}</span>
+                    <span class="muted small">Match {{ entry.score }}</span>
+                  </div>
+                  @if (entry.reasons.length > 0) {
+                    <ul class="reasons small muted">
+                      @for (reason of entry.reasons; track $index) {
+                        <li>{{ reason }}</li>
+                      }
+                    </ul>
+                  }
+                </li>
               }
             </ol>
-            @if (t.sprintSuggestions.length > 0) {
-              <h3 class="sprint-suggestions-title">Suggested from sprint</h3>
-              <ul class="compact-list">
-                @for (entry of t.sprintSuggestions; track entry.issueId) {
-                  <li>
-                    <span class="badge green">pick up?</span>
-                    <span class="issue-id">{{ entry.issueId }}</span> {{ entry.summary }}
-                    <div class="muted small">{{ entry.reasons.join(' · ') }}</div>
-                  </li>
-                }
-              </ul>
-            }
           }
-        </section>
-        </div>
-      </div>
+        }
+      </section>
     </div>
 
     @if (logIssue(); as issue) {
@@ -248,6 +325,7 @@ export class DashboardPage {
   private readonly timer = inject(TimerService);
   protected readonly dev = inject(DevService);
   protected readonly booking = inject(BookingService);
+  protected readonly search = inject(SearchService);
 
   readonly issues = signal<TaskListItem[]>([]);
   readonly pool = signal<TaskListItem[]>([]);
@@ -262,6 +340,7 @@ export class DashboardPage {
   private pendingRequest: WorkLogRequest | null = null;
   readonly aiBusy = signal<AiAction | null>(null);
   readonly freeText = signal('');
+  readonly aiDate = signal(toIsoDate(new Date()));
   readonly draftResult = signal<DraftResult | null>(null);
   readonly summaryText = signal<string | null>(null);
   readonly triageResult = signal<TriageResult | null>(null);
@@ -278,19 +357,19 @@ export class DashboardPage {
     () => this.week()?.days.find((d) => d.date === this.today)?.targetMinutes ?? 0,
   );
   readonly todayGap = computed(() => Math.max(0, this.targetToday() - this.todayBooked()));
-
-  readonly stateCounts = computed<StateCount[]>(() => {
-    const counts = new Map<string, number>();
-    for (const issue of this.issues()) {
-      const state = issue.state ?? 'No state';
-      counts.set(state, (counts.get(state) ?? 0) + 1);
-    }
-    return [...counts.entries()]
-      .map(([state, count]) => ({ state, count }))
-      .sort((a, b) => b.count - a.count);
+  readonly todayPercent = computed(() => {
+    const target = this.targetToday();
+    return target > 0 ? Math.min(100, (this.todayBooked() / target) * 100) : 0;
   });
-  readonly maxStateCount = computed(() =>
-    Math.max(1, ...this.stateCounts().map((s) => s.count)),
+
+  /** Mo–Fr cells for the week strip. */
+  readonly weekdays = computed(() => (this.week()?.days ?? []).filter((d) => d.isWorkday));
+
+  readonly topTickets = computed(() => this.issues().slice(0, TOP_TICKET_COUNT));
+
+  /** Issue-id → web url for triage result links (own tickets + sprint pool). */
+  private readonly webUrls = computed(
+    () => new Map([...this.issues(), ...this.pool()].map((i) => [i.issueId, i.webUrl])),
   );
 
   constructor() {
@@ -323,7 +402,7 @@ export class DashboardPage {
       this.week.set(weekOverview);
       this.pool.set(poolTasks);
       this.presets.set(presets);
-      this.booking.prefetch(issues); // ↪ badge tooltips for Feature rows
+      this.booking.prefetch(issues.slice(0, TOP_TICKET_COUNT)); // ↪ badge tooltips
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
@@ -362,6 +441,15 @@ export class DashboardPage {
       this.error.set((err as Error).message);
     } finally {
       this.bookingPresetId.set(null);
+    }
+  }
+
+  async deletePreset(preset: BookingPreset): Promise<void> {
+    try {
+      await this.api.deletePreset(preset.id);
+      this.presets.set(await this.api.getPresets());
+    } catch (err) {
+      this.error.set((err as Error).message);
     }
   }
 
@@ -407,6 +495,31 @@ export class DashboardPage {
     }
   }
 
+  issueUrl(issueId: string): string | null {
+    return this.webUrls().get(issueId) ?? null;
+  }
+
+  dayState(day: DaySummary): string {
+    if (day.date === this.today) {
+      return 'today';
+    }
+    if (day.date > this.today) {
+      return 'future';
+    }
+    if (day.bookedMinutes >= day.targetMinutes && day.targetMinutes > 0) {
+      return 'reached';
+    }
+    return day.bookedMinutes > 0 ? 'partial' : 'none';
+  }
+
+  dayLetter(date: string): string {
+    return formatDayLabel(date).slice(0, 2);
+  }
+
+  dayLabel(date: string): string {
+    return formatDayLabel(date);
+  }
+
   async ai(action: AiAction): Promise<void> {
     const devParam = this.dev.devParam();
     const monday = startOfWeek(new Date());
@@ -417,13 +530,20 @@ export class DashboardPage {
     try {
       switch (action) {
         case 'draft':
-          this.draftResult.set(await this.api.aiDraft(this.freeText().trim(), this.today, devParam));
+          this.draftResult.set(
+            await this.api.aiDraft(this.freeText().trim(), this.aiDate(), devParam),
+          );
           break;
         case 'gaps':
           this.draftResult.set(await this.api.aiGapfills(from, to, devParam));
           break;
-        case 'summary':
-          this.summaryText.set((await this.api.aiSummary(this.today, this.today, devParam)).text);
+        case 'summary-day':
+          this.summaryText.set(
+            (await this.api.aiSummary(this.aiDate(), this.aiDate(), devParam)).text,
+          );
+          break;
+        case 'summary-week':
+          this.summaryText.set((await this.api.aiSummary(from, to, devParam)).text);
           break;
         case 'triage':
           this.triageResult.set(await this.api.aiTriage(devParam));

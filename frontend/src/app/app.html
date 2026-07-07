@@ -80,8 +80,8 @@
   <router-outlet />
 </main>
 
-@if (searchOpen()) {
-  <app-issue-search-dialog (closed)="searchOpen.set(false)" />
+@if (search.open()) {
+  <app-issue-search-dialog (closed)="search.open.set(false)" />
 }
 
 @if (stopResult(); as r) {

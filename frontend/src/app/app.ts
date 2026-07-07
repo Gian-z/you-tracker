@@ -7,6 +7,7 @@ import { LogTimeDialog } from './dialogs/log-time-dialog';
 import { formatClock, formatElapsed } from './format';
 import { TimerStopResult } from './models';
 import { DevService } from './services/dev.service';
+import { SearchService } from './services/search.service';
 import { ThemeService } from './services/theme.service';
 import { TimerService } from './services/timer.service';
 import { TodayStatusService } from './services/today-status.service';
@@ -23,6 +24,7 @@ export class App {
   protected readonly dev = inject(DevService);
   protected readonly theme = inject(ThemeService);
   protected readonly todayStatus = inject(TodayStatusService);
+  protected readonly search = inject(SearchService);
   private readonly router = inject(Router);
 
   constructor() {
@@ -50,7 +52,7 @@ export class App {
 
   protected openSearch(event?: Event): void {
     event?.preventDefault(); // beat the browser's own Ctrl+K binding
-    this.searchOpen.set(true);
+    this.search.open.set(true);
   }
 
   protected onDevChange(event: Event): void {
@@ -58,7 +60,6 @@ export class App {
   }
 
   protected readonly elapsed = computed(() => formatElapsed(this.timer.elapsedSeconds()));
-  protected readonly searchOpen = signal(false);
   protected readonly stopping = signal(false);
   protected readonly stopResult = signal<TimerStopResult | null>(null);
   protected readonly timerError = signal<string | null>(null);
