@@ -263,6 +263,58 @@ api.MapGet(
         dispatcher.QueryAsync(new GetBookingTargetQuery(issueId, BypassCache: refresh), ct)
 );
 
+// A missing work item (already deleted) must surface as a friendly 409, not the generic 502.
+api.MapPut(
+    "/worklog/{issueId}/{workItemId}",
+    async (
+        string issueId,
+        string workItemId,
+        UpdateWorkLogRequest request,
+        IDispatcher dispatcher,
+        CancellationToken ct
+    ) =>
+    {
+        try
+        {
+            return Results.Ok(
+                await dispatcher.SendAsync(
+                    new UpdateWorkItemCommand(
+                        issueId,
+                        workItemId,
+                        request.Date,
+                        request.Minutes,
+                        request.TypeId,
+                        request.Text
+                    ),
+                    ct
+                )
+            );
+        }
+        catch (YouTrackApiException ex) when (ex.StatusCode == 404)
+        {
+            return Results.Conflict(
+                new { error = "Buchung nicht gefunden – sie wurde vermutlich bereits gelöscht." }
+            );
+        }
+    }
+);
+
+api.MapDelete(
+    "/worklog/{issueId}/{workItemId}",
+    async (string issueId, string workItemId, IDispatcher dispatcher, CancellationToken ct) =>
+    {
+        try
+        {
+            await dispatcher.SendAsync(new DeleteWorkItemCommand(issueId, workItemId), ct);
+            return Results.NoContent();
+        }
+        catch (YouTrackApiException ex) when (ex.StatusCode == 404)
+        {
+            return Results.Conflict(new { error = "Buchung wurde bereits gelöscht." });
+        }
+    }
+);
+
 api.MapPost(
     "/worklog/commit",
     (CommitWorkLogRequest request, IDispatcher dispatcher, CancellationToken ct) =>

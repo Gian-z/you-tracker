@@ -104,6 +104,15 @@ public interface IUserDirectory
 public interface IWorkItemWriter
 {
     Task<WorkItem> CreateWorkItemAsync(NewWorkItem item, CancellationToken ct = default);
+
+    Task<WorkItem> UpdateWorkItemAsync(
+        string issueId,
+        string workItemId,
+        WorkItemUpdate update,
+        CancellationToken ct = default
+    );
+
+    Task DeleteWorkItemAsync(string issueId, string workItemId, CancellationToken ct = default);
 }
 
 public sealed record NewWorkItem(
@@ -113,6 +122,9 @@ public sealed record NewWorkItem(
     string? TypeId,
     string? Text
 );
+
+/// <summary>Full replacement of the editable work-item fields; TypeId null clears the type.</summary>
+public sealed record WorkItemUpdate(DateOnly Date, int Minutes, string? TypeId, string? Text);
 
 /// <summary>LLM port. Providers return raw text/JSON; parsing and validation stay in Core.</summary>
 public interface IAiProvider

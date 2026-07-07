@@ -177,6 +177,10 @@ public sealed class InMemoryPresetStore : IPresetStore
 public sealed class FakeWorkItemWriter : IWorkItemWriter
 {
     public List<NewWorkItem> Created { get; } = [];
+    public List<(string IssueId, string WorkItemId, WorkItemUpdate Update)> Updated { get; } = [];
+    public List<(string IssueId, string WorkItemId)> Deleted { get; } = [];
+    public Exception? ThrowOnUpdate { get; set; }
+    public Exception? ThrowOnDelete { get; set; }
 
     public Task<WorkItem> CreateWorkItemAsync(NewWorkItem item, CancellationToken ct = default)
     {
@@ -194,6 +198,43 @@ public sealed class FakeWorkItemWriter : IWorkItemWriter
                 "me"
             )
         );
+    }
+
+    public Task<WorkItem> UpdateWorkItemAsync(
+        string issueId,
+        string workItemId,
+        WorkItemUpdate update,
+        CancellationToken ct = default
+    )
+    {
+        if (ThrowOnUpdate is not null)
+            throw ThrowOnUpdate;
+        Updated.Add((issueId, workItemId, update));
+        return Task.FromResult(
+            new WorkItem(
+                workItemId,
+                issueId,
+                "summary",
+                update.Date,
+                update.Minutes,
+                update.TypeId,
+                null,
+                update.Text,
+                "me"
+            )
+        );
+    }
+
+    public Task DeleteWorkItemAsync(
+        string issueId,
+        string workItemId,
+        CancellationToken ct = default
+    )
+    {
+        if (ThrowOnDelete is not null)
+            throw ThrowOnDelete;
+        Deleted.Add((issueId, workItemId));
+        return Task.CompletedTask;
     }
 }
 

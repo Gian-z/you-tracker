@@ -105,6 +105,21 @@ export class BookingService {
     return item;
   }
 
+  /** Edit an existing booking — no target redirect (the item already sits on its issue). */
+  async update(
+    item: WorkItem,
+    changes: { date: string; minutes: number; typeId?: string | null; text?: string | null },
+  ): Promise<WorkItem> {
+    const updated = await this.api.updateWorklog(item.issueId, item.id, changes);
+    this.refresh.worklogChanged();
+    return updated;
+  }
+
+  async remove(item: WorkItem): Promise<void> {
+    await this.api.deleteWorklog(item.issueId, item.id);
+    this.refresh.worklogChanged();
+  }
+
   /** Last used work type — default for inline booking and the log dialog. */
   get lastTypeId(): string | null {
     try {

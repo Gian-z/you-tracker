@@ -18,6 +18,22 @@ public sealed record CreateWorkItemCommand(
     bool AllowFeature = false
 ) : ICommand<WorkItem>;
 
+/// <summary>
+/// Edits an existing work item (duration/date/type/comment). Deliberately no Feature→Task
+/// redirect: the item already sits on its issue and YouTrack's update endpoint cannot move
+/// it anyway — moving a booking = delete + re-book.
+/// </summary>
+public sealed record UpdateWorkItemCommand(
+    string IssueId,
+    string WorkItemId,
+    DateOnly Date,
+    int Minutes,
+    string? TypeId,
+    string? Text
+) : ICommand<WorkItem>;
+
+public sealed record DeleteWorkItemCommand(string IssueId, string WorkItemId) : ICommand<bool>;
+
 /// <summary>Writes only the drafts the user explicitly confirmed in the UI.</summary>
 public sealed record CommitWorkLogDraftsCommand(
     IReadOnlyList<ReadModels.WorkLogDraft> ConfirmedDrafts,

@@ -806,6 +806,14 @@
   visibility: visible;
 }
 
+/* armed two-step delete confirm */
+button.icon.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  font-weight: 600;
+}
+
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));

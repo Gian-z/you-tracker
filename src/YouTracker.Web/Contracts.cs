@@ -15,6 +15,13 @@ public sealed record CreateWorkLogRequest(
     bool AllowFeature = false
 );
 
+public sealed record UpdateWorkLogRequest(
+    DateOnly Date,
+    int Minutes,
+    string? TypeId = null,
+    string? Text = null
+);
+
 public sealed record CommitWorkLogRequest(
     IReadOnlyList<WorkLogDraft> Drafts,
     string? DefaultTypeId = null

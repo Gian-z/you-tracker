@@ -60,6 +60,49 @@ public sealed class CreateWorkItemCommandHandler(
     }
 }
 
+/// <summary>
+/// No BookingTargetResolver here (see UpdateWorkItemCommand doc) and no extra ownership
+/// check: the token is always the owner, and YouTrack rejects foreign updates server-side.
+/// </summary>
+public sealed class UpdateWorkItemCommandHandler(IWorkItemWriter writer, IEventBus events)
+    : ICommandHandler<UpdateWorkItemCommand, WorkItem>
+{
+    public async Task<WorkItem> HandleAsync(
+        UpdateWorkItemCommand command,
+        CancellationToken ct = default
+    )
+    {
+        if (command.Minutes <= 0)
+            throw new ArgumentException("Duration must be positive.", nameof(command));
+        var updated = await writer
+            .UpdateWorkItemAsync(
+                command.IssueId,
+                command.WorkItemId,
+                new WorkItemUpdate(command.Date, command.Minutes, command.TypeId, command.Text),
+                ct
+            )
+            .ConfigureAwait(false);
+        events.Publish(new WorkItemsChanged(updated.IssueId));
+        return updated;
+    }
+}
+
+public sealed class DeleteWorkItemCommandHandler(IWorkItemWriter writer, IEventBus events)
+    : ICommandHandler<DeleteWorkItemCommand, bool>
+{
+    public async Task<bool> HandleAsync(
+        DeleteWorkItemCommand command,
+        CancellationToken ct = default
+    )
+    {
+        await writer
+            .DeleteWorkItemAsync(command.IssueId, command.WorkItemId, ct)
+            .ConfigureAwait(false);
+        events.Publish(new WorkItemsChanged(command.IssueId));
+        return true;
+    }
+}
+
 public sealed class CommitWorkLogDraftsCommandHandler(
     IWorkItemWriter writer,
     IWorkItemReader reader,

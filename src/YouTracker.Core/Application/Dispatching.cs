@@ -63,6 +63,12 @@ public sealed class CachingDispatcher : IDispatcher
             _cache.EvictByPrefix("workitems:");
             _cache.EvictByPrefix("issues:");
         });
+        // Load-bearing for edit/delete: the frontend refetches WITHOUT refresh=true.
+        events.Subscribe<WorkItemsChanged>(_ =>
+        {
+            _cache.EvictByPrefix("workitems:");
+            _cache.EvictByPrefix("issues:");
+        });
     }
 
     public async Task<TResult> QueryAsync<TResult>(

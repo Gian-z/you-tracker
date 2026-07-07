@@ -78,6 +78,14 @@ public static class ServiceCollectionExtensions
             CreateWorkItemCommandHandler
         >();
         services.AddTransient<
+            ICommandHandler<UpdateWorkItemCommand, WorkItem>,
+            UpdateWorkItemCommandHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<DeleteWorkItemCommand, bool>,
+            DeleteWorkItemCommandHandler
+        >();
+        services.AddTransient<
             ICommandHandler<CommitWorkLogDraftsCommand, CommitResult>,
             CommitWorkLogDraftsCommandHandler
         >();

@@ -147,6 +147,25 @@ export class ApiService {
     return this.post<WorkItem>('/api/worklog', request);
   }
 
+  updateWorklog(
+    issueId: string,
+    workItemId: string,
+    request: { date: string; minutes: number; typeId?: string | null; text?: string | null },
+  ): Promise<WorkItem> {
+    return this.put<WorkItem>(
+      `/api/worklog/${encodeURIComponent(issueId)}/${encodeURIComponent(workItemId)}`,
+      request,
+    );
+  }
+
+  deleteWorklog(issueId: string, workItemId: string): Promise<void> {
+    return this.unwrap(
+      this.http.delete<void>(
+        `/api/worklog/${encodeURIComponent(issueId)}/${encodeURIComponent(workItemId)}`,
+      ),
+    );
+  }
+
   getBookingTarget(issueId: string, refresh = false): Promise<BookingTarget> {
     return this.get<BookingTarget>(
       `/api/issues/${encodeURIComponent(issueId)}/booking-target`,
@@ -185,6 +204,10 @@ export class ApiService {
 
   private post<T>(url: string, body: unknown): Promise<T> {
     return this.unwrap(this.http.post<T>(url, body));
+  }
+
+  private put<T>(url: string, body: unknown): Promise<T> {
+    return this.unwrap(this.http.put<T>(url, body));
   }
 
   private async unwrap<T>(response$: Observable<T>): Promise<T> {

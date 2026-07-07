@@ -186,6 +186,83 @@ public sealed class YouTrackClientTests
     }
 
     [Fact]
+    public async Task UpdateWorkItem_PostsToWorkItemUrl_SendsNoonLocalEpochAndExplicitNullType()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, CreatedWorkItemJson);
+
+        var updated = await client.UpdateWorkItemAsync(
+            "ALPHA-1",
+            "142-999",
+            new WorkItemUpdate(new DateOnly(2026, 7, 6), 45, TypeId: null, "korrigiert")
+        );
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.StartsWith(
+            "https://yt.example.com/api/issues/ALPHA-1/timeTracking/workItems/142-999?fields=",
+            request.Uri.AbsoluteUri
+        );
+
+        using var body = JsonDocument.Parse(request.Body!);
+        var root = body.RootElement;
+        var expectedEpoch = new DateTimeOffset(
+            2026,
+            7,
+            6,
+            12,
+            0,
+            0,
+            TimeSpan.FromHours(2) // noon Europe/Zurich (CEST)
+        ).ToUnixTimeMilliseconds();
+        Assert.Equal(expectedEpoch, root.GetProperty("date").GetInt64());
+        Assert.Equal(45, root.GetProperty("duration").GetProperty("minutes").GetInt32());
+        Assert.Equal("korrigiert", root.GetProperty("text").GetString());
+        // Explicit null clears the type — the key MUST be present.
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("type").ValueKind);
+
+        Assert.Equal("142-999", updated.Id);
+    }
+
+    [Fact]
+    public async Task UpdateWorkItem_SendsTypeIdWhenSet()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, CreatedWorkItemJson);
+
+        await client.UpdateWorkItemAsync(
+            "ALPHA-1",
+            "142-999",
+            new WorkItemUpdate(new DateOnly(2026, 7, 6), 45, "77-2", null)
+        );
+
+        using var body = JsonDocument.Parse(handler.Requests[0].Body!);
+        Assert.Equal("77-2", body.RootElement.GetProperty("type").GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteWorkItem_SendsDeleteToWorkItemUrl_Throws404AsApiException()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(HttpStatusCode.OK, "");
+
+        await client.DeleteWorkItemAsync("ALPHA-1", "142-999");
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Delete, request.Method);
+        Assert.Equal(
+            "https://yt.example.com/api/issues/ALPHA-1/timeTracking/workItems/142-999",
+            request.Uri.AbsoluteUri
+        );
+
+        handler.Enqueue(HttpStatusCode.NotFound, """{ "error": "Not Found" }""");
+        var ex = await Assert.ThrowsAsync<YouTrackApiException>(() =>
+            client.DeleteWorkItemAsync("ALPHA-1", "gone")
+        );
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task GetMyWorkItems_FallsBackToIssueScopedPathOn404_AndFiltersByAuthorAndDate()
     {
         var (client, handler) = CreateClient();

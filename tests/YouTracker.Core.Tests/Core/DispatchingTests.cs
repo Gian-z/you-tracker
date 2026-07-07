@@ -104,6 +104,19 @@ public class DispatchingTests
     }
 
     [Fact]
+    public async Task WorkItemsChanged_evicts_cached_issue_queries()
+    {
+        var harness = new Harness();
+
+        await harness.Dispatcher.QueryAsync(new GetMyOpenIssuesQuery());
+        await harness.Dispatcher.SendAsync(new DeleteWorkItemCommand("ABC-1", "142-9"));
+        await harness.Dispatcher.QueryAsync(new GetMyOpenIssuesQuery());
+
+        Assert.Equal(2, harness.IssueReader.OpenIssuesCalls); // cache was evicted
+        Assert.Single(harness.Writer.Deleted);
+    }
+
+    [Fact]
     public async Task Unknown_query_type_throws_invalid_operation()
     {
         var harness = new Harness();

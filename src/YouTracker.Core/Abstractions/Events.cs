@@ -6,6 +6,9 @@ public interface IAppEvent;
 
 public sealed record WorkItemCreated(string IssueId, DateOnly Date, int Minutes) : IAppEvent;
 
+/// <summary>A work item was updated or deleted (create keeps its own event for its richer semantics).</summary>
+public sealed record WorkItemsChanged(string IssueId) : IAppEvent;
+
 public sealed record TimerStarted(string IssueId, DateTimeOffset StartedUtc) : IAppEvent;
 
 public sealed record TimerStopped(string IssueId, string IssueSummary, int ElapsedMinutes)

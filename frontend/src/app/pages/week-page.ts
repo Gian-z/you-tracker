@@ -1,5 +1,6 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
+import { EditWorkItemDialog } from '../dialogs/edit-work-item-dialog';
 import { LogTimeDialog } from '../dialogs/log-time-dialog';
 import {
   addDays,
@@ -11,15 +12,16 @@ import {
   startOfWeek,
   toIsoDate,
 } from '../format';
-import { DaySummary, DraftResult, TimeOverview } from '../models';
+import { DaySummary, DraftResult, TimeOverview, WorkItem } from '../models';
 import { ApiService } from '../services/api.service';
+import { BookingService } from '../services/booking.service';
 import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 
 /** Week review: per-day meters, drill-down into bookings, gap fixing (per-day booking + AI). */
 @Component({
   selector: 'app-week-page',
-  imports: [DraftReviewDialog, LogTimeDialog],
+  imports: [DraftReviewDialog, EditWorkItemDialog, LogTimeDialog],
   template: `
     <div class="page">
       <div class="toolbar">
@@ -42,6 +44,12 @@ import { RefreshService } from '../services/refresh.service';
         <div class="banner error">
           {{ err }}
           <button type="button" class="link" (click)="error.set(null)">schliessen</button>
+        </div>
+      }
+      @if (notice(); as n) {
+        <div class="banner success">
+          {{ n }}
+          <button type="button" class="link" (click)="notice.set(null)">schliessen</button>
         </div>
       }
 
@@ -108,6 +116,40 @@ import { RefreshService } from '../services/refresh.service';
                                 <td class="num nowrap">{{ dur(item.minutes) }}</td>
                                 <td class="nowrap">{{ item.typeName ?? '–' }}</td>
                                 <td class="muted">{{ item.text ?? '' }}</td>
+                                @if (dev.isSelf()) {
+                                  <td class="nowrap row-actions always-visible">
+                                    <button
+                                      type="button"
+                                      class="icon"
+                                      title="Buchung bearbeiten"
+                                      [disabled]="deletingId() !== null"
+                                      (click)="openEdit(item, $event)"
+                                    >
+                                      ✎
+                                    </button>
+                                    @if (confirmDeleteId() === item.id) {
+                                      <button
+                                        type="button"
+                                        class="icon danger"
+                                        title="Wirklich löschen?"
+                                        [disabled]="deletingId() !== null"
+                                        (click)="deleteItem(item, $event)"
+                                      >
+                                        Löschen?
+                                      </button>
+                                    } @else {
+                                      <button
+                                        type="button"
+                                        class="icon"
+                                        title="Buchung löschen"
+                                        [disabled]="deletingId() !== null"
+                                        (click)="armDelete(item, $event)"
+                                      >
+                                        ×
+                                      </button>
+                                    }
+                                  </td>
+                                }
                               </tr>
                             }
                           </tbody>
@@ -161,11 +203,15 @@ import { RefreshService } from '../services/refresh.service';
         (closed)="logDate.set(null)"
       />
     }
+    @if (editItem(); as item) {
+      <app-edit-work-item-dialog [item]="item" (closed)="editItem.set(null)" />
+    }
   `,
 })
 export class WeekPage {
   private readonly api = inject(ApiService);
   private readonly refresh = inject(RefreshService);
+  private readonly booking = inject(BookingService);
   protected readonly dev = inject(DevService);
 
   readonly weekStart = signal(startOfWeek(new Date()));
@@ -177,6 +223,11 @@ export class WeekPage {
   readonly expanded = signal<ReadonlySet<string>>(new Set());
   readonly logDate = signal<string | null>(null);
   readonly logIssueId = signal('');
+  readonly notice = signal<string | null>(null);
+  readonly editItem = signal<WorkItem | null>(null);
+  readonly confirmDeleteId = signal<string | null>(null);
+  readonly deletingId = signal<string | null>(null);
+  private deleteResetHandle: ReturnType<typeof setTimeout> | null = null;
 
   readonly today = toIsoDate(new Date());
 
@@ -225,6 +276,38 @@ export class WeekPage {
     event.stopPropagation(); // don't collapse the row
     this.logIssueId.set('');
     this.logDate.set(date);
+  }
+
+  openEdit(item: WorkItem, event: Event): void {
+    event.stopPropagation();
+    this.editItem.set(item);
+  }
+
+  /** Two-step delete confirm, matching the topbar Verwerfen pattern (4s auto-disarm). */
+  armDelete(item: WorkItem, event: Event): void {
+    event.stopPropagation();
+    this.confirmDeleteId.set(item.id);
+    if (this.deleteResetHandle !== null) {
+      clearTimeout(this.deleteResetHandle);
+    }
+    this.deleteResetHandle = setTimeout(() => this.confirmDeleteId.set(null), 4000);
+  }
+
+  async deleteItem(item: WorkItem, event: Event): Promise<void> {
+    event.stopPropagation();
+    this.confirmDeleteId.set(null);
+    this.deletingId.set(item.id);
+    this.error.set(null);
+    try {
+      await this.booking.remove(item);
+      this.notice.set(`Buchung ${item.issueId} · ${formatDuration(item.minutes)} gelöscht`);
+      setTimeout(() => this.notice.set(null), 5000);
+    } catch (err) {
+      this.error.set((err as Error).message);
+      this.refresh.worklogChanged(); // stale row (e.g. already deleted) disappears anyway
+    } finally {
+      this.deletingId.set(null);
+    }
   }
 
   async load(refresh: boolean): Promise<void> {

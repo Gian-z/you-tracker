@@ -401,16 +401,9 @@ public sealed class YouTrackClient
         CancellationToken ct = default
     )
     {
-        // Noon local time in the configured timezone avoids DST/date-boundary shifts.
-        var localNoon = item.Date.ToDateTime(new TimeOnly(12, 0));
-        var epochMs = new DateTimeOffset(
-            localNoon,
-            _config.TimeZone.GetUtcOffset(localNoon)
-        ).ToUnixTimeMilliseconds();
-
         var body = new Dictionary<string, object?>
         {
-            ["date"] = epochMs,
+            ["date"] = ToNoonLocalEpochMs(item.Date),
             ["duration"] = new Dictionary<string, object?> { ["minutes"] = item.Minutes },
             ["text"] = item.Text,
         };
@@ -418,6 +411,64 @@ public sealed class YouTrackClient
             body["type"] = new Dictionary<string, object?> { ["id"] = item.TypeId };
 
         var url = $"issues/{item.IssueId}/timeTracking/workItems?fields={WorkItemFields}";
+        var created = await PostWorkItemAsync(url, body, ct);
+        return MapWorkItem(created);
+    }
+
+    public async Task<WorkItem> UpdateWorkItemAsync(
+        string issueId,
+        string workItemId,
+        WorkItemUpdate update,
+        CancellationToken ct = default
+    )
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["date"] = ToNoonLocalEpochMs(update.Date),
+            ["duration"] = new Dictionary<string, object?> { ["minutes"] = update.Minutes },
+            ["text"] = update.Text,
+            // Unlike create, always send the key: explicit null clears the type.
+            ["type"] = update.TypeId is null
+                ? null
+                : new Dictionary<string, object?> { ["id"] = update.TypeId },
+        };
+
+        var url = $"issues/{issueId}/timeTracking/workItems/{workItemId}?fields={WorkItemFields}";
+        var updated = await PostWorkItemAsync(url, body, ct);
+        return MapWorkItem(updated);
+    }
+
+    public async Task DeleteWorkItemAsync(
+        string issueId,
+        string workItemId,
+        CancellationToken ct = default
+    )
+    {
+        var url = $"issues/{issueId}/timeTracking/workItems/{workItemId}";
+        using var response = await _http.DeleteAsync(url, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody = await response.Content.ReadAsStringAsync(ct);
+            throw new YouTrackApiException((int)response.StatusCode, responseBody, url);
+        }
+    }
+
+    /// <summary>Noon local time in the configured timezone avoids DST/date-boundary shifts.</summary>
+    private long ToNoonLocalEpochMs(DateOnly date)
+    {
+        var localNoon = date.ToDateTime(new TimeOnly(12, 0));
+        return new DateTimeOffset(
+            localNoon,
+            _config.TimeZone.GetUtcOffset(localNoon)
+        ).ToUnixTimeMilliseconds();
+    }
+
+    private async Task<WorkItemDto> PostWorkItemAsync(
+        string url,
+        Dictionary<string, object?> body,
+        CancellationToken ct
+    )
+    {
         using var content = new StringContent(
             JsonSerializer.Serialize(body),
             Encoding.UTF8,
@@ -427,9 +478,7 @@ public sealed class YouTrackClient
         var responseBody = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
             throw new YouTrackApiException((int)response.StatusCode, responseBody, url);
-
-        var created = JsonSerializer.Deserialize<WorkItemDto>(responseBody, JsonOptions)!;
-        return MapWorkItem(created);
+        return JsonSerializer.Deserialize<WorkItemDto>(responseBody, JsonOptions)!;
     }
 
     private async Task<string> GetCurrentLoginAsync(CancellationToken ct)

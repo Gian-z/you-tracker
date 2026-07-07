@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { InlineBook } from '../components/inline-book';
 import { DraftReviewDialog } from '../dialogs/draft-review-dialog';
+import { EditWorkItemDialog } from '../dialogs/edit-work-item-dialog';
 import { LogTimeDialog } from '../dialogs/log-time-dialog';
 import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-dialog';
 import {
@@ -22,6 +23,7 @@ import {
   TaskListItem,
   TimeOverview,
   TriageResult,
+  WorkItem,
   WorkLogRequest,
 } from '../models';
 import { ApiService } from '../services/api.service';
@@ -45,6 +47,7 @@ const TOP_TICKET_COUNT = 5;
     FormsModule,
     RouterLink,
     DraftReviewDialog,
+    EditWorkItemDialog,
     LogTimeDialog,
     SubtaskPickerDialog,
     InlineBook,
@@ -161,6 +164,40 @@ const TOP_TICKET_COUNT = 5;
                     <td class="nowrap"><span class="issue-id">{{ item.issueId }}</span></td>
                     <td class="summary-cell">{{ item.text || item.issueSummary }}</td>
                     <td class="num nowrap">{{ dur(item.minutes) }}</td>
+                    @if (dev.isSelf()) {
+                      <td class="nowrap row-actions always-visible">
+                        <button
+                          type="button"
+                          class="icon"
+                          title="Buchung bearbeiten"
+                          [disabled]="deletingId() !== null"
+                          (click)="editItem.set(item)"
+                        >
+                          ✎
+                        </button>
+                        @if (confirmDeleteId() === item.id) {
+                          <button
+                            type="button"
+                            class="icon danger"
+                            title="Wirklich löschen?"
+                            [disabled]="deletingId() !== null"
+                            (click)="deleteItem(item)"
+                          >
+                            Löschen?
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="icon"
+                            title="Buchung löschen"
+                            [disabled]="deletingId() !== null"
+                            (click)="armDelete(item)"
+                          >
+                            ×
+                          </button>
+                        }
+                      </td>
+                    }
                   </tr>
                 }
               </tbody>
@@ -169,6 +206,9 @@ const TOP_TICKET_COUNT = 5;
                   <td></td>
                   <td>Total</td>
                   <td class="num nowrap">{{ dur(todayBooked()) }}</td>
+                  @if (dev.isSelf()) {
+                    <td></td>
+                  }
                 </tr>
               </tfoot>
             </table>
@@ -317,6 +357,9 @@ const TOP_TICKET_COUNT = 5;
         (closed)="pickerTarget.set(null)"
       />
     }
+    @if (editItem(); as item) {
+      <app-edit-work-item-dialog [item]="item" (closed)="editItem.set(null)" />
+    }
   `,
 })
 export class DashboardPage {
@@ -338,6 +381,10 @@ export class DashboardPage {
   readonly notice = signal<string | null>(null);
   readonly pickerTarget = signal<BookingTarget | null>(null);
   private pendingRequest: WorkLogRequest | null = null;
+  readonly editItem = signal<WorkItem | null>(null);
+  readonly confirmDeleteId = signal<string | null>(null);
+  readonly deletingId = signal<string | null>(null);
+  private deleteResetHandle: ReturnType<typeof setTimeout> | null = null;
   readonly aiBusy = signal<AiAction | null>(null);
   readonly freeText = signal('');
   readonly aiDate = signal(toIsoDate(new Date()));
@@ -469,6 +516,31 @@ export class DashboardPage {
       this.showBooked(item.issueId, request.minutes, null);
     } catch (err) {
       this.error.set((err as Error).message);
+    }
+  }
+
+  /** Two-step delete confirm, matching the topbar Verwerfen pattern (4s auto-disarm). */
+  armDelete(item: WorkItem): void {
+    this.confirmDeleteId.set(item.id);
+    if (this.deleteResetHandle !== null) {
+      clearTimeout(this.deleteResetHandle);
+    }
+    this.deleteResetHandle = setTimeout(() => this.confirmDeleteId.set(null), 4000);
+  }
+
+  async deleteItem(item: WorkItem): Promise<void> {
+    this.confirmDeleteId.set(null);
+    this.deletingId.set(item.id);
+    this.error.set(null);
+    try {
+      await this.booking.remove(item);
+      this.notice.set(`Buchung ${item.issueId} · ${formatDuration(item.minutes)} gelöscht`);
+      setTimeout(() => this.notice.set(null), 5000);
+    } catch (err) {
+      this.error.set((err as Error).message);
+      this.refresh.worklogChanged(); // stale row (e.g. already deleted) disappears anyway
+    } finally {
+      this.deletingId.set(null);
     }
   }
 
