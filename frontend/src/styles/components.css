@@ -281,6 +281,51 @@
   padding: var(--space-2) 0;
 }
 
+/* --- duration quick chips (log dialog) --- */
+
+.duration-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: -0.35rem 0 0.65rem;
+}
+
+.duration-chip {
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.duration-chip:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+
+/* --- toasts --- */
+
+.toast-outlet {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: 200;
+}
+
+.toast {
+  background: var(--surface);
+  color: var(--ok);
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+  border-radius: var(--radius-m);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 600;
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+}
+
 /* --- badges, banners, spinner --- */
 
 .badge {

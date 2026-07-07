@@ -9,6 +9,7 @@ import { TimerStopResult } from './models';
 import { DevService } from './services/dev.service';
 import { SearchService } from './services/search.service';
 import { ThemeService } from './services/theme.service';
+import { ToastService } from './services/toast.service';
 import { TimerService } from './services/timer.service';
 import { TodayStatusService } from './services/today-status.service';
 
@@ -25,6 +26,7 @@ export class App {
   protected readonly theme = inject(ThemeService);
   protected readonly todayStatus = inject(TodayStatusService);
   protected readonly search = inject(SearchService);
+  protected readonly toast = inject(ToastService);
   private readonly router = inject(Router);
 
   constructor() {

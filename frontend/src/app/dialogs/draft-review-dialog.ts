@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { formatShortDate } from '../format';
+import { formatDuration, formatShortDate, parseDuration } from '../format';
 import { CommitResult, UnmatchedItem, WorkLogDraft } from '../models';
 import { ApiService } from '../services/api.service';
 import { DevService } from '../services/dev.service';
@@ -9,7 +9,7 @@ import { RefreshService } from '../services/refresh.service';
 interface DraftRow {
   draft: WorkLogDraft;
   checked: boolean;
-  minutes: number;
+  duration: string;
   comment: string;
 }
 
@@ -19,15 +19,15 @@ interface DraftRow {
   host: { '(document:keydown.escape)': 'cancel()' },
   template: `
     <div class="overlay" (click)="cancel()">
-      <div class="dialog dialog-wide" role="dialog" aria-label="Review drafts" (click)="$event.stopPropagation()">
-        <h2>Review drafts</h2>
+      <div class="dialog dialog-wide" role="dialog" aria-label="Entwürfe prüfen" (click)="$event.stopPropagation()">
+        <h2>Entwürfe prüfen</h2>
 
         @if (result(); as res) {
           <div class="commit-result">
             @if (res.created > 0) {
-              <div class="banner success">Created {{ res.created }} work log {{ res.created === 1 ? 'entry' : 'entries' }}.</div>
+              <div class="banner success">{{ res.created }} {{ res.created === 1 ? 'Buchung' : 'Buchungen' }} erstellt.</div>
             } @else {
-              <div class="banner">No entries created.</div>
+              <div class="banner">Keine Buchungen erstellt.</div>
             }
             @for (note of res.notes; track $index) {
               <div class="banner info">{{ note }}</div>
@@ -37,7 +37,7 @@ interface DraftRow {
             }
           </div>
           <div class="dialog-actions">
-            <button type="button" class="primary" (click)="closed.emit()">Close</button>
+            <button type="button" class="primary" (click)="closed.emit()">Schliessen</button>
           </div>
         } @else {
           @if (rows().length > 0) {
@@ -46,12 +46,12 @@ interface DraftRow {
                 <thead>
                   <tr>
                     <th></th>
-                    <th>Issue</th>
-                    <th>Date</th>
-                    <th>Minutes</th>
-                    <th>Type</th>
-                    <th>Comment</th>
-                    <th>Confidence</th>
+                    <th>Ticket</th>
+                    <th>Datum</th>
+                    <th>Dauer</th>
+                    <th>Typ</th>
+                    <th>Kommentar</th>
+                    <th>Konfidenz</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -62,7 +62,7 @@ interface DraftRow {
                           type="checkbox"
                           [ngModel]="row.checked"
                           (ngModelChange)="setChecked($index, $event)"
-                          [attr.aria-label]="'Include ' + row.draft.issueId"
+                          [attr.aria-label]="'Übernehmen: ' + row.draft.issueId"
                         />
                       </td>
                       <td>
@@ -71,7 +71,13 @@ interface DraftRow {
                       </td>
                       <td class="nowrap">{{ shortDate(row.draft.date) }}</td>
                       <td>
-                        <input type="number" class="minutes-input" min="1" [(ngModel)]="row.minutes" [disabled]="!row.checked" />
+                        <input
+                          type="text"
+                          class="minutes-input"
+                          [(ngModel)]="row.duration"
+                          [disabled]="!row.checked"
+                          placeholder="1h 30m"
+                        />
                       </td>
                       <td>{{ row.draft.workTypeName ?? '–' }}</td>
                       <td>
@@ -94,7 +100,7 @@ interface DraftRow {
 
           @if (unmatched().length > 0) {
             <div class="unmatched">
-              <h3>Unmatched</h3>
+              <h3>Nicht zugeordnet</h3>
               @for (item of unmatched(); track $index) {
                 <div class="unmatched-item">
                   <span>{{ item.text }}</span>
@@ -110,11 +116,11 @@ interface DraftRow {
 
           @if (!dev.isSelf()) {
             <div class="banner">
-              Bookings are always created as YOU — switch back to yourself to commit these drafts.
+              Buchungen werden immer als DU erstellt — wechsle zurück zu dir selbst, um zu buchen.
             </div>
           }
           <div class="dialog-actions">
-            <button type="button" class="secondary" (click)="cancel()" [disabled]="committing()">Cancel</button>
+            <button type="button" class="secondary" (click)="cancel()" [disabled]="committing()">Abbrechen</button>
             <button
               type="button"
               class="primary"
@@ -124,7 +130,7 @@ interface DraftRow {
               @if (committing()) {
                 <span class="spinner"></span>
               }
-              Commit {{ checkedCount() }} {{ checkedCount() === 1 ? 'entry' : 'entries' }}
+              {{ checkedCount() }} {{ checkedCount() === 1 ? 'Buchung' : 'Buchungen' }} erstellen
             </button>
           </div>
         }
@@ -156,7 +162,7 @@ export class DraftReviewDialog {
         this.drafts().map((draft) => ({
           draft,
           checked: true,
-          minutes: draft.minutes,
+          duration: formatDuration(draft.minutes),
           comment: draft.comment ?? '',
         })),
       );
@@ -198,7 +204,7 @@ export class DraftReviewDialog {
       .filter((row) => row.checked)
       .map((row) => ({
         ...row.draft,
-        minutes: Math.max(1, Math.round(row.minutes) || row.draft.minutes),
+        minutes: parseDuration(row.duration) ?? row.draft.minutes,
         comment: row.comment.trim() || null,
       }));
     if (selected.length === 0) {

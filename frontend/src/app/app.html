@@ -80,6 +80,12 @@
   <router-outlet />
 </main>
 
+<div class="toast-outlet" aria-live="polite">
+  @for (t of toast.toasts(); track t.id) {
+    <div class="toast" (click)="toast.dismiss(t.id)">✓ {{ t.text }}</div>
+  }
+</div>
+
 @if (search.open()) {
   <app-issue-search-dialog (closed)="search.open.set(false)" />
 }

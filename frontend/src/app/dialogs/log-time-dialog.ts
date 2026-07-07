@@ -1,9 +1,23 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { formatDuration, parseDuration, toIsoDate } from '../format';
 import { BookingTarget, TaskListItem, WorkItem, WorkType } from '../models';
 import { ApiService } from '../services/api.service';
 import { BookingService } from '../services/booking.service';
+import { TodayStatusService } from '../services/today-status.service';
+import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-log-time-dialog',
@@ -62,14 +76,21 @@ import { BookingService } from '../services/booking.service';
           <label>
             Dauer
             <input
+              #durationInput
               type="text"
               name="duration"
               [(ngModel)]="duration"
               placeholder="1h 30m, 90m, 1.5h oder 90"
               autocomplete="off"
-              autofocus
             />
           </label>
+          <div class="duration-chips">
+            @for (chip of durationChips(); track chip.label) {
+              <button type="button" class="duration-chip" (click)="duration.set(chip.value)">
+                {{ chip.label }}
+              </button>
+            }
+          </div>
           <label>
             Datum
             <input type="date" name="date" [(ngModel)]="date" required />
@@ -123,6 +144,20 @@ import { BookingService } from '../services/booking.service';
 export class LogTimeDialog {
   private readonly api = inject(ApiService);
   private readonly booking = inject(BookingService);
+  private readonly todayStatus = inject(TodayStatusService);
+  private readonly toast = inject(ToastService);
+
+  private readonly durationInput = viewChild<ElementRef<HTMLInputElement>>('durationInput');
+
+  /** 15m…4h plus "Rest des Tages" when a gap exists and the dialog books for today. */
+  readonly durationChips = computed(() => {
+    const chips = ['15m', '30m', '1h', '2h', '4h'].map((v) => ({ label: v, value: v }));
+    const gap = this.todayStatus.gapMinutes();
+    if (gap > 0 && this.date() === toIsoDate(new Date())) {
+      chips.push({ label: `Rest des Tages (${formatDuration(gap)})`, value: formatDuration(gap) });
+    }
+    return chips;
+  });
 
   /** Empty string switches the dialog into pick-a-ticket mode (e.g. per-day booking). */
   readonly issueId = input.required<string>();
@@ -197,6 +232,8 @@ export class LogTimeDialog {
           .catch(() => undefined); // no pre-flight — the command handler still enforces the rule
       });
     });
+    // `autofocus` is unreliable on dynamically inserted dialogs.
+    afterNextRender(() => this.durationInput()?.nativeElement.focus());
     effect(() => {
       if (this.pickIssue()) {
         untracked(() =>
@@ -288,6 +325,7 @@ export class LogTimeDialog {
           comment: text,
         });
       }
+      this.toast.show(`${item.issueId} · ${formatDuration(minutes)} gebucht`);
       this.saved.emit(item);
       this.closed.emit();
     } catch (err) {
