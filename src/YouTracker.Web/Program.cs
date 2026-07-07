@@ -153,6 +153,13 @@ api.MapGet(
         dispatcher.QueryAsync(new GetSprintPoolQuery(BypassCache: refresh, Dev: Clean(dev)), ct)
 );
 
+// All current-sprint tickets (colleagues' included) — for testing/review bookings.
+api.MapGet(
+    "/issues/sprint",
+    (IDispatcher dispatcher, CancellationToken ct, bool refresh = false) =>
+        dispatcher.QueryAsync(new GetCurrentSprintIssuesQuery(BypassCache: refresh), ct)
+);
+
 api.MapGet(
     "/worktypes",
     (IDispatcher dispatcher, CancellationToken ct) =>

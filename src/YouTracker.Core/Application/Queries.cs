@@ -60,6 +60,18 @@ public sealed record GetSprintPoolQuery(bool BypassCache = false, string? Dev = 
     public TimeSpan Ttl => TimeSpan.FromMinutes(2);
 }
 
+/// <summary>
+/// ALL tickets of the current sprint (colleagues' included) from the configured sprintQuery —
+/// for booking testing/review on someone else's ticket. Empty without a configured query.
+/// </summary>
+public sealed record GetCurrentSprintIssuesQuery(bool BypassCache = false)
+    : IQuery<IReadOnlyList<TaskListItem>>,
+        ICacheableQuery
+{
+    public string CacheKey => "issues:sprint-all";
+    public TimeSpan Ttl => TimeSpan.FromMinutes(2);
+}
+
 public sealed record GetTimerStateQuery : IQuery<TimerState?>;
 
 /// <summary>

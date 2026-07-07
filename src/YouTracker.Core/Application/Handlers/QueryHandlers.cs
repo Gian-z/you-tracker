@@ -21,7 +21,8 @@ internal static class TaskListMapper
                 i.EstimateMinutes is { } e ? DurationFormat.ToPresentation(e) : null,
                 i.SpentMinutes is { } s ? DurationFormat.ToPresentation(s) : null,
                 i.Updated,
-                config.WebUrlFor(i.Id)
+                config.WebUrlFor(i.Id),
+                i.Developer
             )),
         ];
 }
@@ -90,6 +91,19 @@ public sealed class GetSprintPoolQueryHandler(IIssueReader issues, AppConfig con
     {
         var pool = await issues.GetSprintPoolIssuesAsync(query.Dev, ct).ConfigureAwait(false);
         return TaskListMapper.Map(pool, config);
+    }
+}
+
+public sealed class GetCurrentSprintIssuesQueryHandler(IIssueReader issues, AppConfig config)
+    : IQueryHandler<GetCurrentSprintIssuesQuery, IReadOnlyList<TaskListItem>>
+{
+    public async Task<IReadOnlyList<TaskListItem>> HandleAsync(
+        GetCurrentSprintIssuesQuery query,
+        CancellationToken ct = default
+    )
+    {
+        var sprint = await issues.GetCurrentSprintIssuesAsync(ct).ConfigureAwait(false);
+        return TaskListMapper.Map(sprint, config);
     }
 }
 

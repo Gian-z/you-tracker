@@ -13,7 +13,8 @@ public sealed record YouTrackConfig(
     string? IssueQuery = null,
     string? SprintPoolQuery = null,
     IReadOnlyList<string>? FeatureTypes = null,
-    IReadOnlyList<string>? TaskTypes = null
+    IReadOnlyList<string>? TaskTypes = null,
+    string? SprintQuery = null
 );
 
 public sealed record AnthropicConfig(string ApiKey, string Model, string CliCommand = "claude")

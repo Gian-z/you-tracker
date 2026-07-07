@@ -90,6 +90,11 @@ public sealed class FakeIssueReader(params Issue[] issues) : IIssueReader
         CancellationToken ct = default
     ) => Task.FromResult(Children.GetValueOrDefault(issueId));
 
+    public List<Issue> SprintIssues { get; } = [];
+
+    public Task<IReadOnlyList<Issue>> GetCurrentSprintIssuesAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<Issue>>(SprintIssues);
+
     public List<string> SearchTexts { get; } = [];
     public List<int> SearchTops { get; } = [];
 

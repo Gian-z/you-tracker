@@ -34,6 +34,8 @@ export interface TaskListItem {
   spent: string | null;
   updated: string;
   webUrl: string;
+  /** Login of the team's Entwickler/Assignee user field. */
+  developer: string | null;
 }
 
 export interface WorkItem {

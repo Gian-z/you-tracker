@@ -1,6 +1,6 @@
 namespace YouTracker.Core.ReadModels;
 
-/// <summary>Frontend-agnostic row for the task list.</summary>
+/// <summary>Frontend-agnostic row for the task list. Developer = login of the team's user field.</summary>
 public sealed record TaskListItem(
     string IssueId,
     string Summary,
@@ -11,7 +11,8 @@ public sealed record TaskListItem(
     string? Estimate,
     string? Spent,
     DateTimeOffset Updated,
-    string WebUrl
+    string WebUrl,
+    string? Developer = null
 );
 
 public sealed record WorkLogDraft(

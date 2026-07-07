@@ -76,7 +76,8 @@ public sealed class JsonConfigStore : IConfigStore
                 FirstNonEmpty(dto.YouTrack?.IssueQuery, null),
                 FirstNonEmpty(dto.YouTrack?.SprintPoolQuery, null),
                 dto.YouTrack?.FeatureTypes,
-                dto.YouTrack?.TaskTypes
+                dto.YouTrack?.TaskTypes,
+                FirstNonEmpty(dto.YouTrack?.SprintQuery, null)
             ),
             // apiKey is optional: without one, the host uses the Claude Code CLI provider.
             new AnthropicConfig(
@@ -98,7 +99,7 @@ public sealed class JsonConfigStore : IConfigStore
     public string Template =>
         """
             {
-              "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "", "featureTypes": ["Feature"], "taskTypes": ["Task", "Aufgabe"] },
+              "youTrack": { "baseUrl": "https://cmiag.myjetbrains.com/youtrack", "webBaseUrl": "https://cmiag.youtrack.cloud", "token": "perm:...", "issueQuery": "", "sprintPoolQuery": "", "sprintQuery": "", "featureTypes": ["Feature"], "taskTypes": ["Task", "Aufgabe"] },
               "anthropic": { "apiKey": "", "model": "claude-opus-4-8" },
               "workday": { "targetHours": 8.0, "timezone": "Europe/Zurich", "inProgressStates": ["In Bearbeitung", "In Arbeit", "In progress"] },
               "git": { "scanRoots": ["C:/cmi-github"], "author": "" }
@@ -142,6 +143,9 @@ public sealed class JsonConfigStore : IConfigStore
 
         /// <summary>Issue types that count as bookable task subtasks.</summary>
         public List<string>? TaskTypes { get; set; }
+
+        /// <summary>Optional query for ALL current-sprint tickets (colleagues' included).</summary>
+        public string? SprintQuery { get; set; }
     }
 
     private sealed class AnthropicDto

@@ -79,6 +79,10 @@ export class ApiService {
     return this.get<TaskListItem[]>('/api/sprintpool', this.withDev({ refresh: String(refresh) }, dev));
   }
 
+  getSprintIssues(refresh = false): Promise<TaskListItem[]> {
+    return this.get<TaskListItem[]>('/api/issues/sprint', { refresh: String(refresh) });
+  }
+
   getTeam(): Promise<TeamConfig | null> {
     return this.get<TeamConfig | null>('/api/team');
   }

@@ -9,7 +9,8 @@ public sealed record Issue(
     string? Priority,
     int? EstimateMinutes,
     int? SpentMinutes,
-    DateTimeOffset Updated
+    DateTimeOffset Updated,
+    string? Developer = null
 );
 
 public sealed record WorkItem(

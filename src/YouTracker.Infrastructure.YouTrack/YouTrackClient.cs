@@ -17,7 +17,7 @@ public sealed class YouTrackClient
         ISprintReader
 {
     private const string IssueFields =
-        "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))";
+        "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation,login))";
 
     private const string WorkItemFields =
         "id,date,duration(minutes,presentation),type(id,name),text,issue(idReadable,summary),author(login)";
@@ -87,6 +87,21 @@ public sealed class YouTrackClient
 
     private static string SubstituteDev(string template, string dev) =>
         template.Replace("$dev", dev, StringComparison.Ordinal);
+
+    public async Task<IReadOnlyList<Issue>> GetCurrentSprintIssuesAsync(
+        CancellationToken ct = default
+    )
+    {
+        if (string.IsNullOrWhiteSpace(_config.YouTrack.SprintQuery))
+            return Array.Empty<Issue>();
+        var raw = SubstituteDev(_config.YouTrack.SprintQuery, DevQueryValue(null));
+        var issues = await GetPagedAsync<IssueDto>(
+            $"issues?query={Uri.EscapeDataString(raw)}&fields={IssueFields}",
+            pageSize: 100,
+            ct
+        );
+        return issues.Select(MapIssue).ToList();
+    }
 
     public async Task<IReadOnlyList<Issue>> GetRecentlyActiveIssuesAsync(
         string? devLogin,
@@ -491,7 +506,9 @@ public sealed class YouTrackClient
             Priority: ValueName(Field("Priority")),
             EstimateMinutes: ValueMinutes(Field("Estimation")),
             SpentMinutes: ValueMinutes(Field("Spent time")),
-            Updated: DateTimeOffset.FromUnixTimeMilliseconds(dto.Updated)
+            Updated: DateTimeOffset.FromUnixTimeMilliseconds(dto.Updated),
+            // The team uses a custom "Entwickler" user field; Assignee is the generic fallback.
+            Developer: ValueLogin(Field("Entwickler")) ?? ValueLogin(Field("Assignee"))
         );
     }
 

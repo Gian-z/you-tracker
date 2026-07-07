@@ -46,6 +46,13 @@ public interface IIssueReader
         int top,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// ALL tickets of the current sprint (colleagues' included) from the configured
+    /// sprintQuery — for booking testing/review on someone else's ticket.
+    /// Empty when no sprint query is configured.
+    /// </summary>
+    Task<IReadOnlyList<Issue>> GetCurrentSprintIssuesAsync(CancellationToken ct = default);
 }
 
 /// <summary>Read port for work items (time bookings) and their types.</summary>

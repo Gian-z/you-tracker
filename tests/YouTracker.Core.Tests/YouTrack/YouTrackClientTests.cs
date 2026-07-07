@@ -60,7 +60,7 @@ public sealed class YouTrackClientTests
         );
         Assert.Contains("$top=100", request.Uri.AbsoluteUri);
         Assert.Contains(
-            "fields=idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))",
+            "fields=idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation,login))",
             Uri.UnescapeDataString(request.Uri.AbsoluteUri)
         );
         Assert.Equal("Bearer TOKEN123", request.Authorization);
@@ -296,6 +296,75 @@ public sealed class YouTrackClientTests
     }
 
     [Fact]
+    public async Task GetCurrentSprintIssues_EmptyWithoutConfiguredQuery_QueriesWhenConfigured()
+    {
+        var (noQuery, noQueryHandler) = CreateClient();
+        Assert.Empty(await noQuery.GetCurrentSprintIssuesAsync());
+        Assert.Empty(noQueryHandler.Requests); // no HTTP call at all
+
+        var handler = new StubHttpHandler();
+        var config = new AppConfig(
+            new YouTrackConfig(
+                "https://yt.example.com/",
+                "https://yt.example.com",
+                "TOKEN123",
+                SprintQuery: "Board X: {Aktueller Sprint} Tag: -Ops"
+            ),
+            new AnthropicConfig("key", "claude"),
+            new WorkdayConfig(8.4, "Europe/Zurich", new[] { "In Progress" })
+        );
+        var client = new YouTrackClient(new HttpClient(handler), config);
+        handler.Enqueue(HttpStatusCode.OK, "[]");
+
+        await client.GetCurrentSprintIssuesAsync();
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains(
+            "query=Board X: {Aktueller Sprint} Tag: -Ops",
+            Uri.UnescapeDataString(request.Uri.AbsoluteUri)
+        );
+        Assert.Contains(
+            $"fields={IssueFieldsMask}",
+            Uri.UnescapeDataString(request.Uri.AbsoluteUri)
+        );
+    }
+
+    [Fact]
+    public async Task MapIssue_ExtractsDeveloperFromEntwicklerFieldWithAssigneeFallback()
+    {
+        var (client, handler) = CreateClient();
+        handler.Enqueue(
+            HttpStatusCode.OK,
+            """
+            [
+              {
+                "idReadable": "ST6-1",
+                "summary": "with Entwickler",
+                "updated": 0,
+                "customFields": [
+                  { "name": "Entwickler", "value": { "login": "VVO", "name": "Vorname Nachname" } },
+                  { "name": "Assignee", "value": { "login": "other" } }
+                ]
+              },
+              {
+                "idReadable": "ST6-2",
+                "summary": "assignee only",
+                "updated": 0,
+                "customFields": [ { "name": "Assignee", "value": { "login": "gzw" } } ]
+              },
+              { "idReadable": "ST6-3", "summary": "nobody", "updated": 0, "customFields": [] }
+            ]
+            """
+        );
+
+        var issues = await client.GetOpenIssuesAsync(null);
+
+        Assert.Equal("VVO", issues[0].Developer); // Entwickler wins over Assignee
+        Assert.Equal("gzw", issues[1].Developer);
+        Assert.Null(issues[2].Developer);
+    }
+
+    [Fact]
     public async Task GetIssueWithChildren_MapsOutwardSubtasksOnly()
     {
         var (client, handler) = CreateClient();
@@ -455,7 +524,7 @@ public sealed class YouTrackClientTests
     }
 
     private const string IssueFieldsMask =
-        "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation))";
+        "idReadable,summary,updated,project(shortName),customFields(name,value(name,minutes,presentation,login))";
 
     [Fact]
     public async Task NonSuccessStatus_ThrowsYouTrackApiExceptionWithDetails()

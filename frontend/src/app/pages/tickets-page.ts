@@ -10,8 +10,8 @@ import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
 import { TimerService } from '../services/timer.service';
 
-type Segment = 'mine' | 'pool';
-type SortKey = 'id' | 'state' | 'priority' | 'spent' | 'updated';
+type Segment = 'mine' | 'pool' | 'sprint';
+type SortKey = 'id' | 'state' | 'developer' | 'priority' | 'spent' | 'updated';
 
 interface StateCount {
   state: string;
@@ -41,6 +41,15 @@ interface StateCount {
             (click)="segment.set('pool')"
           >
             Sprint-Pool
+          </button>
+          <button
+            type="button"
+            role="tab"
+            [class.active]="segment() === 'sprint'"
+            (click)="segment.set('sprint')"
+            title="Alle Tickets im aktuellen Sprint — z.B. für Testing/Review auf Kollegen-Tickets"
+          >
+            Sprint (alle)
           </button>
         </span>
         <input
@@ -86,6 +95,9 @@ interface StateCount {
                 <th class="sortable" (click)="sortBy('id')">ID{{ arrow('id') }}</th>
                 <th>Titel</th>
                 <th class="sortable" (click)="sortBy('state')">Status{{ arrow('state') }}</th>
+                @if (segment() === 'sprint') {
+                  <th class="sortable" (click)="sortBy('developer')">Entwickler{{ arrow('developer') }}</th>
+                }
                 <th class="sortable" (click)="sortBy('priority')">Priorität{{ arrow('priority') }}</th>
                 <th class="sortable nowrap" (click)="sortBy('spent')" title="Gebucht / Schätzung">
                   Ist / Soll{{ arrow('spent') }}
@@ -108,6 +120,9 @@ interface StateCount {
                   </td>
                   <td class="summary-cell">{{ t.summary }}</td>
                   <td class="nowrap"><span class="badge neutral">{{ t.state ?? '–' }}</span></td>
+                  @if (segment() === 'sprint') {
+                    <td class="nowrap" [title]="developerName(t)">{{ t.developer ?? '–' }}</td>
+                  }
                   <td class="nowrap">{{ t.priority ?? '–' }}</td>
                   <td class="nowrap" [class.over]="isOver(t)">
                     {{ t.spent ?? '0m' }} <span class="muted">/ {{ t.estimate ?? '–' }}</span>
@@ -129,10 +144,13 @@ interface StateCount {
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="10" class="muted empty-cell">
+                  <td colspan="11" class="muted empty-cell">
                     @if (current().length === 0) {
                       @if (segment() === 'pool') {
                         Kein Sprint-Pool (oder keine Pool-Query konfiguriert).
+                      } @else if (segment() === 'sprint') {
+                        Keine Sprint-Tickets — youTrack.sprintQuery in config.json konfigurieren
+                        (z.B. Board ST6-Sprint: {{ '{' }}Aktueller Sprint{{ '}' }}).
                       } @else {
                         Keine Tickets gefunden.
                       }
@@ -166,6 +184,7 @@ export class TicketsPage {
 
   readonly issues = signal<TaskListItem[]>([]);
   readonly pool = signal<TaskListItem[]>([]);
+  readonly sprint = signal<TaskListItem[]>([]);
   readonly segment = signal<Segment>('mine');
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -175,7 +194,16 @@ export class TicketsPage {
   readonly sortAsc = signal(true);
   readonly logIssue = signal<TaskListItem | null>(null);
 
-  readonly current = computed(() => (this.segment() === 'mine' ? this.issues() : this.pool()));
+  readonly current = computed(() => {
+    switch (this.segment()) {
+      case 'mine':
+        return this.issues();
+      case 'pool':
+        return this.pool();
+      case 'sprint':
+        return this.sprint();
+    }
+  });
 
   readonly stateCounts = computed<StateCount[]>(() => {
     const counts = new Map<string, number>();
@@ -197,7 +225,8 @@ export class TicketsPage {
         (!query ||
           t.issueId.toLowerCase().includes(query) ||
           t.summary.toLowerCase().includes(query) ||
-          (t.state ?? '').toLowerCase().includes(query)),
+          (t.state ?? '').toLowerCase().includes(query) ||
+          (t.developer ?? '').toLowerCase().includes(query)),
     );
     const key = this.sortKey();
     if (key) {
@@ -228,13 +257,16 @@ export class TicketsPage {
     }
     this.error.set(null);
     try {
-      const [issues, pool] = await Promise.all([
+      const [issues, pool, sprint] = await Promise.all([
         this.api.getIssues(refresh, this.dev.devParam()),
         this.api.getSprintPool(refresh, this.dev.devParam()).catch(() => [] as TaskListItem[]),
+        this.api.getSprintIssues(refresh).catch(() => [] as TaskListItem[]),
       ]);
       this.issues.set(issues);
       this.pool.set(pool);
+      this.sprint.set(sprint);
       this.booking.prefetch(issues);
+      this.booking.prefetch(sprint);
     } catch (err) {
       this.error.set((err as Error).message);
     } finally {
@@ -269,6 +301,8 @@ export class TicketsPage {
         return a.issueId.localeCompare(b.issueId, undefined, { numeric: true });
       case 'state':
         return (a.state ?? '').localeCompare(b.state ?? '');
+      case 'developer':
+        return (a.developer ?? '').localeCompare(b.developer ?? '');
       case 'priority':
         return (a.priority ?? '').localeCompare(b.priority ?? '');
       case 'spent':
@@ -282,6 +316,16 @@ export class TicketsPage {
     const spent = parseDuration(t.spent ?? '');
     const estimate = parseDuration(t.estimate ?? '');
     return spent !== null && estimate !== null && spent > estimate;
+  }
+
+  developerName(item: TaskListItem): string {
+    if (!item.developer) {
+      return 'Kein Entwickler zugewiesen';
+    }
+    const user = this.dev
+      .users()
+      .find((u) => u.login.toLowerCase() === item.developer!.toLowerCase());
+    return user?.fullName ?? item.developer;
   }
 
   redirectHint(item: TaskListItem): string {

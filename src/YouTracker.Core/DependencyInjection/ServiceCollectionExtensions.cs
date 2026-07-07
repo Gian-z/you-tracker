@@ -114,6 +114,10 @@ public static class ServiceCollectionExtensions
             IQueryHandler<GetSprintPoolQuery, IReadOnlyList<TaskListItem>>,
             GetSprintPoolQueryHandler
         >();
+        services.AddTransient<
+            IQueryHandler<GetCurrentSprintIssuesQuery, IReadOnlyList<TaskListItem>>,
+            GetCurrentSprintIssuesQueryHandler
+        >();
 
         // Sprint dashboard
         services.AddTransient<
