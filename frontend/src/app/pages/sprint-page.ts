@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { formatClock, formatDuration } from '../format';
+import { formatClock, formatDayLabel, formatDuration } from '../format';
 import {
   AmpelStatus,
   DevVerdictFacts,
@@ -328,8 +328,7 @@ export class SprintPage {
   }
 
   shortDay(iso: string): string {
-    const d = new Date(iso + 'T00:00:00');
-    return `${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`;
+    return formatDayLabel(iso);
   }
 
   ampel(status: AmpelStatus): string {

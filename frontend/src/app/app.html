@@ -8,6 +8,15 @@
     <a routerLink="/assistant" routerLinkActive="active">Assistant</a>
   </nav>
   <span class="flex-spacer"></span>
+  <button
+    type="button"
+    class="icon theme-toggle"
+    (click)="theme.toggle()"
+    [title]="theme.isDark() ? 'Helles Design' : 'Dunkles Design'"
+    aria-label="Design wechseln"
+  >
+    {{ theme.isDark() ? '☀' : '🌙' }}
+  </button>
   <span class="dev-picker" [class.other-dev]="!dev.isSelf()" title="Whose tickets and bookings to show">
     @if (dev.users().length > 0) {
       <select [value]="dev.selectedLogin()" (change)="onDevChange($event)" aria-label="Developer">

@@ -1,0 +1,139 @@
+/* Design tokens — the single source for color, spacing, type, radius and elevation.
+   Dark mode: system preference by default, overridable via <html data-theme="light|dark">
+   (set by ThemeService; ?theme= query param supported for headless screenshots). */
+
+:root {
+  color-scheme: light dark;
+
+  /* palette */
+  --bg: #f5f6f7;
+  --surface: #ffffff;
+  --surface-2: #eef0f2;
+  --hover: rgba(0, 0, 0, 0.045);
+  --border: #d8dde2;
+  --text: #1d2329;
+  --muted: #667380;
+  --accent: #2563eb;
+  --accent-weak: rgba(37, 99, 235, 0.1);
+  --green: #15803d;
+  --green-bg: rgba(21, 128, 61, 0.1);
+  --amber: #92600a;
+  --amber-bg: rgba(217, 145, 21, 0.14);
+  --red: #b91c1c;
+  --red-bg: rgba(185, 28, 28, 0.09);
+
+  /* semantic status aliases — prefer these in components */
+  --ok: var(--green);
+  --ok-bg: var(--green-bg);
+  --warn: var(--amber);
+  --warn-bg: var(--amber-bg);
+  --danger: var(--red);
+  --danger-bg: var(--red-bg);
+
+  /* spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* type scale */
+  --fs-xs: 0.75rem;
+  --fs-s: 0.8125rem;
+  --fs-m: 0.875rem;
+  --fs-l: 1rem;
+  --fs-xl: 1.35rem;
+  --fs-hero: 1.7rem;
+  --fw-medium: 500;
+  --fw-semibold: 650;
+
+  /* radius & elevation */
+  --radius-s: 6px;
+  --radius-m: 8px;
+  --radius-l: 10px;
+  --shadow-0: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-1: 0 8px 24px rgba(0, 0, 0, 0.14);
+
+  --focus-ring: 2px solid var(--accent);
+
+  /* heat states (sprint heatmap, week strip) */
+  --heat-reached-bg: #d7ecd9;
+  --heat-reached-fg: #14531d;
+  --heat-partial-bg: #f4e8c8;
+  --heat-partial-fg: #6b4e00;
+  --heat-low-bg: #f6d9d4;
+  --heat-low-fg: #7a1f14;
+  --heat-none-bg: #eecfcf;
+  --heat-none-fg: #5c1010;
+  --heat-today-bg: #d6e4f7;
+  --heat-today-fg: #123a6d;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #16191c;
+  --surface: #1e2226;
+  --surface-2: #262b30;
+  --hover: rgba(255, 255, 255, 0.055);
+  --border: #343b42;
+  --text: #e3e8ec;
+  --muted: #93a0ab;
+  --accent: #6ea1f5;
+  --accent-weak: rgba(110, 161, 245, 0.14);
+  --green: #4cc273;
+  --green-bg: rgba(76, 194, 115, 0.13);
+  --amber: #e0a94e;
+  --amber-bg: rgba(224, 169, 78, 0.15);
+  --red: #ef7070;
+  --red-bg: rgba(239, 112, 112, 0.13);
+  --shadow-0: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-1: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --heat-reached-bg: #1a4731;
+  --heat-reached-fg: #9fe0b3;
+  --heat-partial-bg: #3d2e0a;
+  --heat-partial-fg: #ecc94b;
+  --heat-low-bg: #3d1212;
+  --heat-low-fg: #f19999;
+  --heat-none-bg: #1c1212;
+  --heat-none-fg: #b06a6a;
+  --heat-today-bg: #0d2044;
+  --heat-today-fg: #9dc1f7;
+}
+
+/* System dark, unless explicitly forced light. Values mirror [data-theme='dark'] above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #16191c;
+    --surface: #1e2226;
+    --surface-2: #262b30;
+    --hover: rgba(255, 255, 255, 0.055);
+    --border: #343b42;
+    --text: #e3e8ec;
+    --muted: #93a0ab;
+    --accent: #6ea1f5;
+    --accent-weak: rgba(110, 161, 245, 0.14);
+    --green: #4cc273;
+    --green-bg: rgba(76, 194, 115, 0.13);
+    --amber: #e0a94e;
+    --amber-bg: rgba(224, 169, 78, 0.15);
+    --red: #ef7070;
+    --red-bg: rgba(239, 112, 112, 0.13);
+    --shadow-0: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --shadow-1: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --heat-reached-bg: #1a4731;
+    --heat-reached-fg: #9fe0b3;
+    --heat-partial-bg: #3d2e0a;
+    --heat-partial-fg: #ecc94b;
+    --heat-low-bg: #3d1212;
+    --heat-low-fg: #f19999;
+    --heat-none-bg: #1c1212;
+    --heat-none-fg: #b06a6a;
+    --heat-today-bg: #0d2044;
+    --heat-today-fg: #9dc1f7;
+  }
+}

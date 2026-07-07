@@ -41,6 +41,11 @@
   background: var(--accent-weak);
 }
 
+.theme-toggle {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
 .timer-widget {
   font-variant-numeric: tabular-nums;
   display: inline-flex;

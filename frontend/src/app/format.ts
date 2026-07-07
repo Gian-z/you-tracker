@@ -38,28 +38,28 @@ export function relativeTime(iso: string): string {
   }
   const minutes = Math.floor((Date.now() - then) / 60_000);
   if (minutes < 1) {
-    return 'just now';
+    return 'gerade eben';
   }
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return `vor ${minutes}m`;
   }
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return `${hours}h ago`;
+    return `vor ${hours}h`;
   }
   const days = Math.floor(hours / 24);
   if (days < 7) {
-    return `${days}d ago`;
+    return `vor ${days}d`;
   }
   const weeks = Math.floor(days / 7);
   if (days < 30) {
-    return `${weeks}w ago`;
+    return `vor ${weeks}w`;
   }
   const months = Math.floor(days / 30);
   if (months < 12) {
-    return `${months}mo ago`;
+    return `vor ${months}mo`;
   }
-  return `${Math.floor(days / 365)}y ago`;
+  return `vor ${Math.floor(days / 365)}y`;
 }
 
 /**
@@ -113,9 +113,9 @@ export function startOfWeek(d: Date): Date {
   return r;
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
-/** "Mon 06.07." for a "yyyy-MM-dd" string. */
+/** "Mo 06.07." for a "yyyy-MM-dd" string. */
 export function formatDayLabel(isoDate: string): string {
   const d = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(d.getTime())) {

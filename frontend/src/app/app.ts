@@ -4,6 +4,7 @@ import { LogTimeDialog } from './dialogs/log-time-dialog';
 import { formatElapsed } from './format';
 import { TimerStopResult } from './models';
 import { DevService } from './services/dev.service';
+import { ThemeService } from './services/theme.service';
 import { TimerService } from './services/timer.service';
 
 @Component({
@@ -15,6 +16,7 @@ import { TimerService } from './services/timer.service';
 export class App {
   protected readonly timer = inject(TimerService);
   protected readonly dev = inject(DevService);
+  protected readonly theme = inject(ThemeService);
 
   constructor() {
     void this.dev.init();
