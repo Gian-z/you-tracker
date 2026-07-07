@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/YouTracker.Core/YouTracker.Core.csproj" />
+    <Project Path="src/YouTracker.Infrastructure.Calendar/YouTracker.Infrastructure.Calendar.csproj"/>
     <Project Path="src/YouTracker.Infrastructure.Anthropic/YouTracker.Infrastructure.Anthropic.csproj" />
     <Project Path="src/YouTracker.Infrastructure.ClaudeCli/YouTracker.Infrastructure.ClaudeCli.csproj" />
     <Project Path="src/YouTracker.Infrastructure.Git/YouTracker.Infrastructure.Git.csproj" />
