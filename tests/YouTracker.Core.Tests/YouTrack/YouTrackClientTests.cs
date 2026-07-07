@@ -296,6 +296,38 @@ public sealed class YouTrackClientTests
     }
 
     [Fact]
+    public async Task ListEndpoints_FollowSkipPagingUntilShortPage()
+    {
+        var (client, handler) = CreateClient();
+        static string Page(int start, int count) =>
+            "["
+            + string.Join(
+                ",",
+                Enumerable
+                    .Range(start, count)
+                    .Select(i =>
+                        $$"""{ "idReadable": "ALPHA-{{i}}", "summary": "S{{i}}", "updated": 0 }"""
+                    )
+            )
+            + "]";
+        // GetRecentlyActiveIssuesAsync pages with $top=50: one full page, then a short one.
+        handler.Enqueue(HttpStatusCode.OK, Page(0, 50)).Enqueue(HttpStatusCode.OK, Page(50, 3));
+
+        var issues = await client.GetRecentlyActiveIssuesAsync(
+            null,
+            new DateOnly(2026, 7, 1),
+            new DateOnly(2026, 7, 5)
+        );
+
+        Assert.Equal(53, issues.Count);
+        Assert.Equal("ALPHA-0", issues[0].Id);
+        Assert.Equal("ALPHA-52", issues[52].Id);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("$skip=0&$top=50", handler.Requests[0].Uri.AbsoluteUri);
+        Assert.Contains("$skip=50&$top=50", handler.Requests[1].Uri.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task NonSuccessStatus_ThrowsYouTrackApiExceptionWithDetails()
     {
         var (client, handler) = CreateClient();

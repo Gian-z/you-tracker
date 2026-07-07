@@ -61,8 +61,9 @@ public sealed class YouTrackClient
         var raw = string.IsNullOrWhiteSpace(_config.YouTrack.IssueQuery)
             ? $"for: {dev} #Unresolved or work author: {dev} #Unresolved sort by: updated desc"
             : SubstituteDev(_config.YouTrack.IssueQuery, dev);
-        var issues = await GetAsync<List<IssueDto>>(
-            $"issues?query={Uri.EscapeDataString(raw)}&$top=100&fields={IssueFields}",
+        var issues = await GetPagedAsync<IssueDto>(
+            $"issues?query={Uri.EscapeDataString(raw)}&fields={IssueFields}",
+            pageSize: 100,
             ct
         );
         return issues.Select(MapIssue).ToList();
@@ -76,8 +77,9 @@ public sealed class YouTrackClient
         if (string.IsNullOrWhiteSpace(_config.YouTrack.SprintPoolQuery))
             return Array.Empty<Issue>();
         var raw = SubstituteDev(_config.YouTrack.SprintPoolQuery, DevQueryValue(devLogin));
-        var issues = await GetAsync<List<IssueDto>>(
-            $"issues?query={Uri.EscapeDataString(raw)}&$top=50&fields={IssueFields}",
+        var issues = await GetPagedAsync<IssueDto>(
+            $"issues?query={Uri.EscapeDataString(raw)}&fields={IssueFields}",
+            pageSize: 50,
             ct
         );
         return issues.Select(MapIssue).ToList();
@@ -97,8 +99,9 @@ public sealed class YouTrackClient
         var query = Uri.EscapeDataString(
             $"updated by: {dev} updated: {FormatDate(from)} .. {FormatDate(to)}"
         );
-        var issues = await GetAsync<List<IssueDto>>(
-            $"issues?query={query}&$top=50&fields={IssueFields}",
+        var issues = await GetPagedAsync<IssueDto>(
+            $"issues?query={query}&fields={IssueFields}",
+            pageSize: 50,
             ct
         );
         return issues.Select(MapIssue).ToList();
@@ -117,10 +120,11 @@ public sealed class YouTrackClient
         {
             try
             {
-                var items = await GetAsync<List<WorkItemDto>>(
+                var items = await GetPagedAsync<WorkItemDto>(
                     $"workItems?author={Uri.EscapeDataString(login)}"
                         + $"&startDate={FormatDate(from)}&endDate={FormatDate(to)}"
-                        + $"&$top=500&fields={WorkItemFields}",
+                        + $"&fields={WorkItemFields}",
+                    pageSize: 500,
                     ct
                 );
                 return items.Select(MapWorkItem).ToList();
@@ -135,16 +139,18 @@ public sealed class YouTrackClient
         var query = Uri.EscapeDataString(
             $"work author: {DevQueryValue(devLogin)} work date: {FormatDate(from)} .. {FormatDate(to)}"
         );
-        var issues = await GetAsync<List<IssueDto>>(
+        var issues = await GetPagedAsync<IssueDto>(
             $"issues?query={query}&fields=idReadable,summary",
+            pageSize: 100,
             ct
         );
 
         var result = new List<WorkItem>();
         foreach (var issue in issues)
         {
-            var items = await GetAsync<List<WorkItemDto>>(
-                $"issues/{issue.IdReadable}/timeTracking/workItems?fields={WorkItemFields}&$top=200",
+            var items = await GetPagedAsync<WorkItemDto>(
+                $"issues/{issue.IdReadable}/timeTracking/workItems?fields={WorkItemFields}",
+                pageSize: 200,
                 ct
             );
             result.AddRange(
@@ -167,8 +173,9 @@ public sealed class YouTrackClient
         // Roadmapvorhaben lives on the parent feature — traverse `Subtask INWARD` links.
         var fields =
             "idReadable,links(direction,linkType(name),issues(idReadable,customFields(name,value(name))))";
-        var issues = await GetAsync<List<IssueDto>>(
-            $"issues?query={Uri.EscapeDataString(taskQuery)}&$top=500&fields={fields}",
+        var issues = await GetPagedAsync<IssueDto>(
+            $"issues?query={Uri.EscapeDataString(taskQuery)}&fields={fields}",
+            pageSize: 500,
             ct
         );
         return issues
@@ -183,8 +190,9 @@ public sealed class YouTrackClient
     )
     {
         var fields = "idReadable,summary,customFields(name,value(name,minutes,login))";
-        var issues = await GetAsync<List<IssueDto>>(
-            $"issues?query={Uri.EscapeDataString(featureQuery)}&$top=200&fields={fields}",
+        var issues = await GetPagedAsync<IssueDto>(
+            $"issues?query={Uri.EscapeDataString(featureQuery)}&fields={fields}",
+            pageSize: 200,
             ct
         );
 
@@ -253,8 +261,9 @@ public sealed class YouTrackClient
     {
         try
         {
-            var users = await GetAsync<List<UserDto>>(
-                "users?fields=login,fullName,banned&$top=200",
+            var users = await GetPagedAsync<UserDto>(
+                "users?fields=login,fullName,banned",
+                pageSize: 200,
                 ct
             );
             return users
@@ -348,6 +357,34 @@ public sealed class YouTrackClient
         if (!response.IsSuccessStatusCode)
             throw new YouTrackApiException((int)response.StatusCode, body, url);
         return JsonSerializer.Deserialize<T>(body, JsonOptions)!;
+    }
+
+    /// <summary>Hard ceiling across all pages — protects against a runaway query, not a real limit.</summary>
+    private const int MaxPagedItems = 2000;
+
+    /// <summary>
+    /// Follows $skip/$top until a short page: YouTrack silently truncates at $top, which
+    /// understated totals for anyone with more issues/work items than one page.
+    /// <paramref name="pathAndQuery"/> must not already contain $skip/$top.
+    /// </summary>
+    private async Task<List<T>> GetPagedAsync<T>(
+        string pathAndQuery,
+        int pageSize,
+        CancellationToken ct
+    )
+    {
+        var separator = pathAndQuery.Contains('?') ? '&' : '?';
+        var all = new List<T>();
+        for (var skip = 0; ; skip += pageSize)
+        {
+            var page = await GetAsync<List<T>>(
+                $"{pathAndQuery}{separator}$skip={skip}&$top={pageSize}",
+                ct
+            );
+            all.AddRange(page);
+            if (page.Count < pageSize || all.Count >= MaxPagedItems)
+                return all;
+        }
     }
 
     private static string FormatDate(DateOnly date) =>
