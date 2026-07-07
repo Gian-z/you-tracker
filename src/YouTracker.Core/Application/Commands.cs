@@ -52,3 +52,7 @@ public sealed record SaveSprintAbsencesCommand(
     string SprintName,
     IReadOnlyList<TeamAbsence> Absences
 ) : ICommand<TeamSprint>;
+
+/// <summary>Adds a sprint to the team config; workdays = Mo–Fr within From..To.</summary>
+public sealed record AddSprintCommand(string Name, DateOnly From, DateOnly To)
+    : ICommand<TeamSprint>;

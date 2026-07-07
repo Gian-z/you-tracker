@@ -91,6 +91,10 @@ export class ApiService {
     return this.post<TeamSprint>('/api/sprint/absences', { sprintName, absences });
   }
 
+  addSprint(name: string, from: string, to: string): Promise<TeamSprint> {
+    return this.post<TeamSprint>('/api/sprint/sprints', { name, from, to });
+  }
+
   aiSprintVerdicts(sprintName: string): Promise<SprintVerdict[]> {
     return this.post<SprintVerdict[]>('/api/ai/sprint-verdicts', { sprintName });
   }

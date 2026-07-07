@@ -8,6 +8,7 @@ import {
   SprintVerdict,
   TeamAbsence,
   TeamConfig,
+  TeamSprint,
 } from '../models';
 import { ApiService } from '../services/api.service';
 
@@ -27,12 +28,19 @@ const AMPEL_LABEL: Record<AmpelStatus, string> = {
       <div class="toolbar">
         <label class="inline">
           Sprint
-          <select [ngModel]="sprintName()" (ngModelChange)="selectSprint($event)">
-            @for (s of team()?.sprints ?? []; track s.name) {
-              <option [value]="s.name">{{ s.name }}</option>
+          <!-- Native binding (kein ngModel): @for-Optionen materialisieren asynchron und
+               verpassen sonst den initialen writeValue — Picker erschien leer. -->
+          <select
+            [value]="sprintName()"
+            (change)="selectSprint($any($event.target).value)"
+            aria-label="Sprint"
+          >
+            @for (s of sortedSprints(); track s.name) {
+              <option [value]="s.name" [selected]="s.name === sprintName()">{{ s.name }}</option>
             }
           </select>
         </label>
+        <button type="button" (click)="newSprintOpen.set(true)">+ Neuer Sprint</button>
         <button type="button" (click)="load(true)" [disabled]="loading()">Aktualisieren</button>
         <button type="button" (click)="openAbsenceEditor()">
           Abwesenheiten ({{ currentAbsences().length }})
@@ -190,6 +198,46 @@ const AMPEL_LABEL: Record<AmpelStatus, string> = {
       }
     </div>
 
+    @if (newSprintOpen()) {
+      <div class="overlay" (click)="newSprintOpen.set(false)">
+        <div class="dialog" role="dialog" aria-label="Neuer Sprint" (click)="$event.stopPropagation()">
+          <h2>Neuer Sprint</h2>
+          <label>
+            Name
+            <input type="text" [(ngModel)]="newSprintName" placeholder="z.B. 2026.07-1" autocomplete="off" />
+          </label>
+          <label>
+            Von
+            <input type="date" [(ngModel)]="newSprintFrom" />
+          </label>
+          <label>
+            Bis
+            <input type="date" [(ngModel)]="newSprintTo" />
+          </label>
+          <p class="muted small">Werktage (Mo–Fr) im Zeitraum werden automatisch als Sprint-Tage übernommen.</p>
+          @if (newSprintError(); as err) {
+            <div class="banner error">{{ err }}</div>
+          }
+          <div class="dialog-actions">
+            <button type="button" class="secondary" (click)="newSprintOpen.set(false)" [disabled]="savingSprint()">
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              class="primary"
+              (click)="createSprint()"
+              [disabled]="savingSprint() || !newSprintName().trim() || !newSprintFrom() || !newSprintTo()"
+            >
+              @if (savingSprint()) {
+                <span class="spinner"></span>
+              }
+              Anlegen
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
     @if (absenceEditorOpen()) {
       <div class="overlay" (click)="absenceEditorOpen.set(false)">
         <div class="dialog absence-editor" role="dialog" aria-label="Abwesenheiten" (click)="$event.stopPropagation()">
@@ -238,10 +286,23 @@ export class SprintPage {
   readonly absenceEditorOpen = signal(false);
   readonly editAbsences = signal<TeamAbsence[]>([]);
   readonly savingAbsences = signal(false);
+  readonly newSprintOpen = signal(false);
+  readonly newSprintName = signal('');
+  readonly newSprintFrom = signal('');
+  readonly newSprintTo = signal('');
+  readonly newSprintError = signal<string | null>(null);
+  readonly savingSprint = signal(false);
 
   readonly currentAbsences = computed(
     () =>
       this.team()?.sprints.find((s) => s.name === this.sprintName())?.absences ?? [],
+  );
+
+  /** Newest sprint first (by last workday) — the picker's natural reading order. */
+  readonly sortedSprints = computed(() =>
+    [...(this.team()?.sprints ?? [])].sort((a, b) =>
+      (lastWorkday(b) ?? '').localeCompare(lastWorkday(a) ?? ''),
+    ),
   );
 
   constructor() {
@@ -252,7 +313,8 @@ export class SprintPage {
     try {
       const team = await this.api.getTeam();
       this.team.set(team);
-      const latest = team?.sprints[team.sprints.length - 1];
+      // Latest by last workday, not by array position in team.json.
+      const latest = this.sortedSprints()[0];
       if (latest) {
         this.sprintName.set(latest.name);
         this.editAbsences.set([...latest.absences]);
@@ -260,6 +322,28 @@ export class SprintPage {
       }
     } catch (err) {
       this.error.set((err as Error).message);
+    }
+  }
+
+  async createSprint(): Promise<void> {
+    this.savingSprint.set(true);
+    this.newSprintError.set(null);
+    try {
+      const sprint = await this.api.addSprint(
+        this.newSprintName().trim(),
+        this.newSprintFrom(),
+        this.newSprintTo(),
+      );
+      this.team.set(await this.api.getTeam());
+      this.newSprintOpen.set(false);
+      this.newSprintName.set('');
+      this.newSprintFrom.set('');
+      this.newSprintTo.set('');
+      this.selectSprint(sprint.name);
+    } catch (err) {
+      this.newSprintError.set((err as Error).message);
+    } finally {
+      this.savingSprint.set(false);
     }
   }
 
@@ -366,4 +450,9 @@ export class SprintPage {
       ? '0m'
       : (minutes < 0 ? '−' : '') + formatDuration(Math.abs(minutes));
   }
+}
+
+/** ISO workdays sort lexicographically — the max is the sprint's last day. */
+function lastWorkday(sprint: TeamSprint): string | null {
+  return sprint.workdays.length > 0 ? [...sprint.workdays].sort().at(-1)! : null;
 }

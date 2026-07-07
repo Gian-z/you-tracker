@@ -31,6 +31,8 @@ public sealed record SaveAbsencesRequest(
 
 public sealed record SprintVerdictsRequest(string SprintName);
 
+public sealed record AddSprintRequest(string Name, DateOnly From, DateOnly To);
+
 public sealed record SavePresetRequest(
     string? Id,
     string Name,

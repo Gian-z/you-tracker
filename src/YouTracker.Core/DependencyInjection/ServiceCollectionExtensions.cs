@@ -132,6 +132,10 @@ public static class ServiceCollectionExtensions
             ICommandHandler<SaveSprintAbsencesCommand, TeamSprint>,
             SaveSprintAbsencesCommandHandler
         >();
+        services.AddTransient<
+            ICommandHandler<AddSprintCommand, TeamSprint>,
+            AddSprintCommandHandler
+        >();
 
         // Directory + presets
         services.AddTransient<

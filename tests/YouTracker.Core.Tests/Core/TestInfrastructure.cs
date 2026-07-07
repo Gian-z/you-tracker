@@ -192,6 +192,17 @@ public sealed class FakeWorkItemWriter : IWorkItemWriter
     }
 }
 
+public sealed class InMemoryTeamConfigStore(TeamConfig? config = null) : ITeamConfigStore
+{
+    public TeamConfig? Config { get; set; } = config;
+
+    public string ConfigPath => "memory://team.json";
+
+    public TeamConfig? Load() => Config;
+
+    public void Save(TeamConfig config) => Config = config;
+}
+
 public sealed class InMemoryTimerStore : ITimerStore
 {
     private TimerState? _state;

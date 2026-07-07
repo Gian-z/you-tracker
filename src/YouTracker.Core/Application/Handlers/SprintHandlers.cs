@@ -47,6 +47,41 @@ public sealed class SaveSprintAbsencesCommandHandler(ITeamConfigStore store)
     }
 }
 
+public sealed class AddSprintCommandHandler(ITeamConfigStore store)
+    : ICommandHandler<AddSprintCommand, TeamSprint>
+{
+    public Task<TeamSprint> HandleAsync(AddSprintCommand command, CancellationToken ct = default)
+    {
+        var config =
+            store.Load()
+            ?? throw new InvalidOperationException(
+                $"No team config found at '{store.ConfigPath}'."
+            );
+        var name = command.Name.Trim();
+        if (name.Length == 0)
+            throw new InvalidOperationException("Sprint-Name darf nicht leer sein.");
+        if (
+            config.Sprints.Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase))
+        )
+            throw new InvalidOperationException($"Sprint '{name}' existiert bereits.");
+        if (command.From > command.To)
+            throw new InvalidOperationException("Das Von-Datum liegt nach dem Bis-Datum.");
+
+        var workdays = new List<DateOnly>();
+        for (var day = command.From; day <= command.To; day = day.AddDays(1))
+        {
+            if (day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))
+                workdays.Add(day);
+        }
+        if (workdays.Count == 0)
+            throw new InvalidOperationException("Der Zeitraum enthält keine Werktage.");
+
+        var sprint = new TeamSprint(name, workdays, []);
+        store.Save(config with { Sprints = [.. config.Sprints, sprint] });
+        return Task.FromResult(sprint);
+    }
+}
+
 public sealed class GetSprintDashboardQueryHandler(
     ITeamConfigStore teamStore,
     ISprintReader sprintReader,

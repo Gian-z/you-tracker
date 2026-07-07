@@ -318,6 +318,13 @@ api.MapGet(
         dispatcher.QueryAsync(new GetSprintDashboardQuery(sprint, BypassCache: refresh), ct)
 );
 
+// Creates a sprint in team.json from the UI (workdays = Mo–Fr within the range).
+api.MapPost(
+    "/sprint/sprints",
+    (AddSprintRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.SendAsync(new AddSprintCommand(request.Name, request.From, request.To), ct)
+);
+
 api.MapPost(
     "/sprint/absences",
     (SaveAbsencesRequest request, IDispatcher dispatcher, CancellationToken ct) =>
