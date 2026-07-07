@@ -273,18 +273,28 @@ public sealed class InMemoryTimerStore : ITimerStore
 
 public sealed class FakeAiProvider(string response = "{}") : IAiProvider
 {
+    public string? LastUserPrompt { get; private set; }
+
     public Task<string> CompleteTextAsync(
         string systemPrompt,
         string userPrompt,
         CancellationToken ct = default
-    ) => Task.FromResult(response);
+    )
+    {
+        LastUserPrompt = userPrompt;
+        return Task.FromResult(response);
+    }
 
     public Task<string> CompleteJsonAsync(
         string systemPrompt,
         string userPrompt,
         string jsonSchema,
         CancellationToken ct = default
-    ) => Task.FromResult(response);
+    )
+    {
+        LastUserPrompt = userPrompt;
+        return Task.FromResult(response);
+    }
 }
 
 public static class TestData

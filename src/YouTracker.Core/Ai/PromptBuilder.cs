@@ -72,6 +72,34 @@ public static class PromptBuilder
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Calendar meetings as factual evidence; when a configured rule maps a title to an
+    /// issue, the target is stated so the model books it there directly.
+    /// </summary>
+    public static string Meetings(
+        IEnumerable<CalendarMeeting> meetings,
+        IReadOnlyList<Config.MeetingRule>? rules
+    )
+    {
+        var sb = new StringBuilder(
+            "## Calendar meetings in the period — factual evidence of attended meetings "
+                + "(local time | duration | title | configured target issue)\n"
+        );
+        foreach (var m in meetings.OrderBy(x => x.Start))
+        {
+            var minutes = Math.Max(1, (int)Math.Round((m.End - m.Start).TotalMinutes));
+            var rule = rules?.FirstOrDefault(r => r.Matches(m.Title));
+            sb.Append(m.Start.ToString("yyyy-MM-dd HH:mm"))
+                .Append(" | ")
+                .Append(minutes)
+                .Append("m | ")
+                .Append(m.Title.ReplaceLineEndings(" "))
+                .Append(" | ")
+                .AppendLine(rule is null ? "-" : $"{rule.IssueId} (config rule)");
+        }
+        return sb.ToString();
+    }
+
     public static string Commits(IEnumerable<CommitActivity> commits, TimeZoneInfo timeZone)
     {
         var sb = new StringBuilder(

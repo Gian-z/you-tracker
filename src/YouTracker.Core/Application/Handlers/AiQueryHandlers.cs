@@ -14,6 +14,7 @@ public sealed class DraftWorkLogQueryHandler(
     IIssueReader issues,
     IWorkItemReader workItems,
     ICommitActivityReader activity,
+    IMeetingReader meetings,
     IAiProvider ai,
     AppConfig config,
     TimeProvider time
@@ -37,6 +38,9 @@ public sealed class DraftWorkLogQueryHandler(
         IReadOnlyList<CommitActivity> commits = query.Dev is null
             ? await activity.GetCommitsAsync(query.Date, query.Date, ct).ConfigureAwait(false)
             : [];
+        var calendar = await MeetingEvidence
+            .LoadAsync(meetings, query.Dev, query.Date, query.Date, ct)
+            .ConfigureAwait(false);
 
         var userPrompt =
             PromptBuilder.Workday(
@@ -48,12 +52,19 @@ public sealed class DraftWorkLogQueryHandler(
             + PromptBuilder.WorkItemTypeList(types)
             + PromptBuilder.WorkItemList(booked)
             + (commits.Count > 0 ? PromptBuilder.Commits(commits, config.TimeZone) : "")
+            + (calendar.Count > 0 ? PromptBuilder.Meetings(calendar, config.Calendar?.Rules) : "")
             + $"\n## Task\nThe user describes their work for {query.Date:yyyy-MM-dd}. "
             + "Map each described activity to one issue from the list and propose work items (drafts). "
             + (
                 commits.Count > 0
                     ? "The git commits are factual evidence: use them to identify issues (ticket IDs like "
                         + "[XBOX-548] in commit messages or branch-style prefixes) and to corroborate what was worked on. "
+                    : ""
+            )
+            + (
+                calendar.Count > 0
+                    ? "The calendar meetings are factual evidence too: when the user mentions a meeting, use its "
+                        + "real duration, and when a configured target issue is stated, book it exactly there. "
                     : ""
             )
             + "Do not duplicate time that is already booked. Anything you cannot map goes into 'unmatched'. "
@@ -79,6 +90,7 @@ public sealed class SuggestGapFillsQueryHandler(
     IIssueReader issues,
     IWorkItemReader workItems,
     ICommitActivityReader activity,
+    IMeetingReader meetings,
     IAiProvider ai,
     AppConfig config,
     TimeProvider time
@@ -114,6 +126,9 @@ public sealed class SuggestGapFillsQueryHandler(
         IReadOnlyList<CommitActivity> commits = query.Dev is null
             ? await activity.GetCommitsAsync(query.From, query.To, ct).ConfigureAwait(false)
             : [];
+        var calendar = await MeetingEvidence
+            .LoadAsync(meetings, query.Dev, query.From, query.To, ct)
+            .ConfigureAwait(false);
 
         var gapLines = string.Join(
             "\n",
@@ -125,14 +140,16 @@ public sealed class SuggestGapFillsQueryHandler(
             + PromptBuilder.WorkItemTypeList(types)
             + PromptBuilder.WorkItemList(items)
             + (commits.Count > 0 ? PromptBuilder.Commits(commits, config.TimeZone) : "")
+            + (calendar.Count > 0 ? PromptBuilder.Meetings(calendar, config.Calendar?.Rules) : "")
             + $"\n## Gap days\n{gapLines}\n"
             + "\n## Task\nPropose plausible work items (drafts) that fill each gap day. "
             + (
-                commits.Count > 0
-                    ? "PRIORITIZE the git commits: their timestamps show which days the dev worked on what, "
-                        + "and ticket IDs in the messages (e.g. [XBOX-548]) identify the issue directly — such "
-                        + "proposals deserve high confidence. Fall back to recently updated/booked issues only "
-                        + "for gaps without commit evidence. "
+                commits.Count > 0 || calendar.Count > 0
+                    ? "PRIORITIZE the factual evidence: calendar meetings show attended meetings with exact "
+                        + "durations (book them on the stated configured issue when one is given), and git commit "
+                        + "timestamps show which days the dev worked on what — ticket IDs in the messages "
+                        + "(e.g. [XBOX-548]) identify the issue directly. Such proposals deserve high confidence. "
+                        + "Fall back to recently updated/booked issues only for gaps without evidence. "
                     : "Base them on which issues the user recently worked on or updated. "
                         + "Prefer issues already booked adjacent days. "
             )
@@ -269,5 +286,35 @@ public sealed class TriageIssuesQueryHandler(
             )
             .ConfigureAwait(false);
         return AiResponseParser.ParseTriage(json, open, pool);
+    }
+}
+
+/// <summary>
+/// Calendar meetings as optional AI evidence: like git commits they describe the machine
+/// owner's day, so they only apply when viewing yourself; all-day/declined entries are
+/// noise, and a broken/unconfigured feed must never fail an AI request — it just means
+/// "no calendar evidence".
+/// </summary>
+internal static class MeetingEvidence
+{
+    public static async Task<IReadOnlyList<CalendarMeeting>> LoadAsync(
+        IMeetingReader meetings,
+        string? dev,
+        DateOnly from,
+        DateOnly to,
+        CancellationToken ct
+    )
+    {
+        if (dev is not null)
+            return [];
+        try
+        {
+            var all = await meetings.GetMeetingsAsync(from, to, ct).ConfigureAwait(false);
+            return [.. all.Where(m => m is { IsAllDay: false, IsDeclined: false })];
+        }
+        catch
+        {
+            return [];
+        }
     }
 }

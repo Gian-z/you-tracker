@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using YouTracker.Core.Abstractions;
 using YouTracker.Core.Config;
 using YouTracker.Core.ReadModels;
@@ -85,15 +84,9 @@ public sealed class GetMeetingDraftsQueryHandler(
         return new WorkLogDraftResult(drafts, unmatched);
     }
 
-    /// <summary>First matching rule wins; `*` wildcard, case-insensitive over the full title.</summary>
+    /// <summary>First matching rule wins (wildcard semantics live on MeetingRule.Matches).</summary>
     internal static MeetingRule? Match(IReadOnlyList<MeetingRule> rules, string title) =>
-        rules.FirstOrDefault(r =>
-            Regex.IsMatch(
-                title,
-                "^" + Regex.Escape(r.Pattern).Replace("\\*", ".*") + "$",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
-            )
-        );
+        rules.FirstOrDefault(r => r.Matches(title));
 
     /// <summary>
     /// Pragmatic dedup: a meeting counts as already booked when a work item exists on the

@@ -48,7 +48,16 @@ public sealed record MeetingRule(
     string IssueId,
     string? WorkTypeName = null,
     string? Comment = null
-);
+)
+{
+    public bool Matches(string title) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            title,
+            "^" + System.Text.RegularExpressions.Regex.Escape(Pattern).Replace("\\*", ".*") + "$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant
+        );
+}
 
 /// <summary>Published Outlook ICS feed; null/empty URL disables the calendar feature.</summary>
 public sealed record CalendarConfig(string? IcsUrl, IReadOnlyList<MeetingRule>? Rules = null);

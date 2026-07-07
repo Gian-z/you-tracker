@@ -32,6 +32,7 @@ public class DispatchingTests
             services.AddSingleton<IWorkItemWriter>(Writer);
             services.AddSingleton<ITimerStore>(TimerStore);
             services.AddSingleton<IAiProvider>(new FakeAiProvider());
+            services.AddSingleton<IMeetingReader>(new FakeMeetingReader());
             services.AddSingleton(TestData.Config());
 
             Provider = new TestServiceProvider(services);
