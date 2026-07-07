@@ -12,6 +12,7 @@ import {
   formatDayLabel,
   formatDuration,
   formatScore,
+  parseDuration,
   startOfWeek,
   toIsoDate,
 } from '../format';
@@ -21,6 +22,8 @@ import {
   DaySummary,
   DraftResult,
   TaskListItem,
+  TeamConfig,
+  TeamSprint,
   TimeOverview,
   TriageResult,
   WorkItem,
@@ -108,8 +111,41 @@ const TOP_TICKET_COUNT = 5;
         </div>
         <div class="tile">
           <div class="tile-caption">Fokus-Score</div>
-          <div class="tile-value">{{ score(week()?.averageFokusScore ?? null) }}</div>
-          <div class="tile-sub muted">Wochenschnitt</div>
+          <div class="tile-value">
+            {{ score(todayFokus()?.score ?? null) }}
+            <span class="muted hero-target">Ø {{ score(week()?.averageFokusScore ?? null) }}</span>
+          </div>
+          @if (todayFokus(); as f) {
+            <div class="tile-sub muted fokus-breakdown">
+              <span>{{ f.switches }} Tickets heute
+                @if (f.switchPenalty > 0) {
+                  <span class="fokus-penalty">−{{ f.switchPenalty }}</span>
+                }
+              </span>
+              <span>Deep Work {{ f.deepPercent }}%
+                @if (f.deepPenalty > 0) {
+                  <span class="fokus-penalty">−{{ f.deepPenalty }}</span>
+                }
+              </span>
+              @if (fragmentedBookings().length > 0) {
+                <button type="button" class="link small" (click)="fokusDetails.set(!fokusDetails())">
+                  {{ fokusDetails() ? 'weniger' : 'Details' }}
+                </button>
+              }
+            </div>
+            @if (fokusDetails()) {
+              <ul class="fokus-fragments small muted">
+                @for (frag of fragmentedBookings(); track frag.issueId) {
+                  <li>
+                    <span class="issue-id">{{ frag.issueId }}</span>
+                    {{ frag.count }}× kurz ({{ dur(frag.minutes) }})
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            <div class="tile-sub muted">heute · Ø Woche</div>
+          }
         </div>
       </div>
 
@@ -152,8 +188,53 @@ const TOP_TICKET_COUNT = 5;
         </section>
       }
 
-      <!-- Row 3: today's bookings | top tickets -->
+      <!-- Row 3: today's bookings | top tickets | sprint progress -->
       <div class="dash-grid">
+        <section class="card">
+          <h2>
+            Sprint-Stand
+            @if (currentSprint(); as s) {
+              <span class="muted small">{{ s.name }}</span>
+            }
+          </h2>
+          @if (sprintDays(); as d) {
+            <div class="sprint-days">
+              Tag <strong>{{ d.done }}</strong> von {{ d.total }}
+              <span class="muted">· {{ d.remaining }} {{ d.remaining === 1 ? 'Tag' : 'Tage' }} übrig</span>
+            </div>
+            <div class="meter">
+              <span class="meter-fill" [style.width.%]="(d.done / d.total) * 100"></span>
+            </div>
+          }
+          @if (ticketStates().length > 0) {
+            <div class="state-chips sprint-states">
+              @for (s of ticketStates(); track s.state) {
+                <a routerLink="/tickets" class="state-chip">
+                  {{ s.state }} <span class="muted">{{ s.count }}</span>
+                </a>
+              }
+            </div>
+          }
+          @if (effortTotals(); as e) {
+            <div class="sprint-effort small">
+              <span [class.over-effort]="e.spent > e.estimate">
+                Ist {{ dur(e.spent) }} <span class="muted">/ Soll {{ dur(e.estimate) }}</span>
+              </span>
+            </div>
+            <div class="meter">
+              <span
+                class="meter-fill"
+                [class.ok]="e.spent <= e.estimate"
+                [class.warn]="e.spent > e.estimate"
+                [style.width.%]="Math.min(100, (e.spent / e.estimate) * 100)"
+              ></span>
+            </div>
+          }
+          @if (!currentSprint() && ticketStates().length === 0) {
+            <div class="muted small">Keine Sprint-Daten (team.json / Tickets fehlen).</div>
+          }
+        </section>
+
         <section class="card">
           <h2>Heutige Buchungen</h2>
           @if (todayItems().length > 0) {
@@ -423,6 +504,97 @@ export class DashboardPage {
   /** Mo–Fr cells for the week strip. */
   readonly weekdays = computed(() => (this.week()?.days ?? []).filter((d) => d.isWorkday));
 
+  protected readonly Math = Math;
+  readonly fokusDetails = signal(false);
+  readonly team = signal<TeamConfig | null>(null);
+
+  /**
+   * Today's Fokus breakdown — same formula as MetricsCalculator.FokusScore:
+   * 100 − 12×max(0, switches−2) − 30×(1−deepShare). Keep the constants in sync.
+   */
+  readonly todayFokus = computed(() => {
+    const items = this.todayItems();
+    const booked = this.todayBooked();
+    if (booked === 0) {
+      return null;
+    }
+    const switches = new Set(items.map((i) => i.issueId)).size;
+    const deepShare =
+      items.filter((i) => i.minutes >= 60).reduce((sum, i) => sum + i.minutes, 0) / booked;
+    const switchPenalty = 12 * Math.max(0, switches - 2);
+    const deepPenalty = Math.round(30 * (1 - deepShare));
+    return {
+      score: Math.min(100, Math.max(0, Math.round(100 - switchPenalty - 30 * (1 - deepShare)))),
+      switches,
+      switchPenalty,
+      deepPercent: Math.round(deepShare * 100),
+      deepPenalty,
+    };
+  });
+
+  /** Today's sub-hour bookings grouped by ticket — what fragments the day. */
+  readonly fragmentedBookings = computed(() => {
+    const groups = new Map<string, { count: number; minutes: number }>();
+    for (const item of this.todayItems().filter((i) => i.minutes < 60)) {
+      const entry = groups.get(item.issueId) ?? { count: 0, minutes: 0 };
+      entry.count += 1;
+      entry.minutes += item.minutes;
+      groups.set(item.issueId, entry);
+    }
+    return [...groups.entries()]
+      .map(([issueId, g]) => ({ issueId, ...g }))
+      .sort((a, b) => b.count - a.count);
+  });
+
+  /** Sprint containing today; falls back to the one ending last. */
+  readonly currentSprint = computed<TeamSprint | null>(() => {
+    const sprints = this.team()?.sprints ?? [];
+    if (sprints.length === 0) {
+      return null;
+    }
+    const last = (s: TeamSprint) => [...s.workdays].sort().at(-1) ?? '';
+    return (
+      sprints.find((s) => s.workdays.includes(this.today)) ??
+      [...sprints].sort((a, b) => last(b).localeCompare(last(a)))[0]
+    );
+  });
+
+  readonly sprintDays = computed(() => {
+    const sprint = this.currentSprint();
+    if (!sprint || sprint.workdays.length === 0) {
+      return null;
+    }
+    const done = sprint.workdays.filter((d) => d <= this.today).length;
+    return {
+      done,
+      total: sprint.workdays.length,
+      remaining: sprint.workdays.filter((d) => d > this.today).length,
+    };
+  });
+
+  /** Status distribution of my tickets (chips linking to /tickets). */
+  readonly ticketStates = computed(() => {
+    const counts = new Map<string, number>();
+    for (const issue of this.issues()) {
+      const state = issue.state ?? 'Ohne Status';
+      counts.set(state, (counts.get(state) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([state, count]) => ({ state, count }))
+      .sort((a, b) => b.count - a.count);
+  });
+
+  /** Aggregated Ist/Soll over my tickets (parsed from the presentation strings). */
+  readonly effortTotals = computed(() => {
+    let spent = 0;
+    let estimate = 0;
+    for (const issue of this.issues()) {
+      spent += parseDuration(issue.spent ?? '') ?? 0;
+      estimate += parseDuration(issue.estimate ?? '') ?? 0;
+    }
+    return estimate > 0 ? { spent, estimate } : null;
+  });
+
   readonly topTickets = computed(() => this.issues().slice(0, TOP_TICKET_COUNT));
 
   /** Issue-id → web url for triage result links (own tickets + sprint pool). */
@@ -454,16 +626,18 @@ export class DashboardPage {
     }
     this.error.set(null);
     try {
-      const [issues, weekOverview, poolTasks, presets] = await Promise.all([
+      const [issues, weekOverview, poolTasks, presets, team] = await Promise.all([
         this.api.getIssues(refresh, devParam),
         this.api.getOverview(from, to, refresh, devParam),
         this.api.getSprintPool(refresh, devParam),
         this.api.getPresets().catch(() => [] as BookingPreset[]),
+        this.api.getTeam().catch(() => null),
       ]);
       this.issues.set(issues);
       this.week.set(weekOverview);
       this.pool.set(poolTasks);
       this.presets.set(presets);
+      this.team.set(team);
       this.booking.prefetch(issues.slice(0, TOP_TICKET_COUNT)); // ↪ badge tooltips
     } catch (err) {
       this.error.set((err as Error).message);

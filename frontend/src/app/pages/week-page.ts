@@ -105,7 +105,14 @@ import { RefreshService } from '../services/refresh.service';
                     <td colspan="6">
                       @if (d.items.length > 0) {
                         <div class="day-meta muted small">
-                          {{ d.contextSwitches }} Kontextwechsel · Deep Work {{ percent(d.deepWorkShare) }}
+                          {{ d.contextSwitches }} Kontextwechsel
+                          @if (switchPenalty(d) > 0) {
+                            <span class="fokus-penalty">−{{ switchPenalty(d) }}</span>
+                          }
+                          · Deep Work {{ percent(d.deepWorkShare) }}
+                          @if (deepPenalty(d) > 0) {
+                            <span class="fokus-penalty">−{{ deepPenalty(d) }}</span>
+                          }
                         </div>
                         <table class="items-table">
                           <tbody>
@@ -362,5 +369,14 @@ export class WeekPage {
 
   percent(share: number): string {
     return `${Math.round(share * 100)}%`;
+  }
+
+  // Fokus-Score deductions — same constants as MetricsCalculator.FokusScore.
+  switchPenalty(day: DaySummary): number {
+    return 12 * Math.max(0, day.contextSwitches - 2);
+  }
+
+  deepPenalty(day: DaySummary): number {
+    return day.bookedMinutes === 0 ? 0 : Math.round(30 * (1 - day.deepWorkShare));
   }
 }
