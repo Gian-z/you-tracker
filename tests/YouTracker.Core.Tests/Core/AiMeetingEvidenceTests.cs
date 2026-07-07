@@ -75,6 +75,48 @@ public class AiMeetingEvidenceTests
     }
 
     [Fact]
+    public async Task Rule_tickets_outside_the_issue_scope_survive_draft_validation()
+    {
+        // AD-4711 is NOT in the dev's issue query — without augmentation the parser would
+        // reject the AI's proposal as "unknown issue id 'AD-4711'".
+        var meetings = new FakeMeetingReader();
+        meetings.Meetings.Add(Meeting("Daily Standup"));
+        var ai = new FakeAiProvider(
+            """
+            {
+              "drafts": [
+                { "issueId": "AD-4711", "date": "2026-07-06", "minutes": 15,
+                  "confidence": "high", "comment": "Daily" }
+              ],
+              "unmatched": []
+            }
+            """
+        );
+        var handler = new DraftWorkLogQueryHandler(
+            new FakeIssueReader(TestData.Issue("ABC-1")),
+            new FakeWorkItemReader(),
+            new FakeCommitActivityReader(),
+            meetings,
+            ai,
+            TestData.Config(
+                new CalendarConfig(
+                    "https://example.com/cal.ics",
+                    [new MeetingRule("Daily*", "AD-4711", null, null)]
+                )
+            ),
+            new FakeTimeProvider(Now)
+        );
+
+        var result = await handler.HandleAsync(new DraftWorkLogQuery("Daily gemacht", Day));
+
+        var draft = Assert.Single(result.Drafts);
+        Assert.Equal("AD-4711", draft.IssueId);
+        Assert.Empty(result.Unmatched);
+        // The augmented issue is also offered to the model in the issue list.
+        Assert.Contains("AD-4711", ai.LastUserPrompt);
+    }
+
+    [Fact]
     public async Task Gapfill_prompt_contains_meetings_for_gap_days()
     {
         var meetings = new FakeMeetingReader();

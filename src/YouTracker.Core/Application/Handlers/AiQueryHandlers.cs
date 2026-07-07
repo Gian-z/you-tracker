@@ -29,7 +29,15 @@ public sealed class DraftWorkLogQueryHandler(
         var recent = await issues
             .GetRecentlyActiveIssuesAsync(query.Dev, query.Date.AddDays(-7), query.Date, ct)
             .ConfigureAwait(false);
-        var known = Merge(open, recent);
+        var known = await MeetingEvidence
+            .AugmentWithRuleIssuesAsync(
+                issues,
+                Merge(open, recent),
+                config.Calendar?.Rules,
+                time.GetUtcNow(),
+                ct
+            )
+            .ConfigureAwait(false);
         var types = await workItems.GetWorkItemTypesAsync(ct).ConfigureAwait(false);
         var booked = await workItems
             .GetWorkItemsAsync(query.Dev, query.Date, query.Date, ct)
@@ -120,7 +128,15 @@ public sealed class SuggestGapFillsQueryHandler(
         var recent = await issues
             .GetRecentlyActiveIssuesAsync(query.Dev, query.From.AddDays(-7), query.To, ct)
             .ConfigureAwait(false);
-        var known = DraftWorkLogQueryHandler.Merge(open, recent);
+        var known = await MeetingEvidence
+            .AugmentWithRuleIssuesAsync(
+                issues,
+                DraftWorkLogQueryHandler.Merge(open, recent),
+                config.Calendar?.Rules,
+                time.GetUtcNow(),
+                ct
+            )
+            .ConfigureAwait(false);
         var types = await workItems.GetWorkItemTypesAsync(ct).ConfigureAwait(false);
         // Commits are local-machine evidence — only meaningful for the current user.
         IReadOnlyList<CommitActivity> commits = query.Dev is null
@@ -316,5 +332,62 @@ internal static class MeetingEvidence
         {
             return [];
         }
+    }
+
+    /// <summary>
+    /// The meeting-rule tickets (e.g. AD-…) usually live OUTSIDE the dev's issue-query scope,
+    /// but AiResponseParser validates proposed ids against the known list — without this,
+    /// meeting drafts die as "unknown issue id". Summaries are fetched best-effort.
+    /// </summary>
+    public static async Task<IReadOnlyList<Issue>> AugmentWithRuleIssuesAsync(
+        IIssueReader issues,
+        IReadOnlyList<Issue> known,
+        IReadOnlyList<Config.MeetingRule>? rules,
+        DateTimeOffset now,
+        CancellationToken ct
+    )
+    {
+        if (rules is not { Count: > 0 })
+            return known;
+        var missing = rules
+            .Select(r => r.IssueId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(id =>
+                !known.Any(k => string.Equals(k.Id, id, StringComparison.OrdinalIgnoreCase))
+            )
+            .ToList();
+        if (missing.Count == 0)
+            return known;
+
+        var extra = new List<Issue>();
+        foreach (var id in missing)
+        {
+            string? summary = null;
+            try
+            {
+                summary = (
+                    await issues.GetIssueWithChildrenAsync(id, ct).ConfigureAwait(false)
+                )?.Summary;
+            }
+            catch
+            {
+                // best effort — the id stays bookable even without a summary
+            }
+            var dash = id.IndexOf('-');
+            extra.Add(
+                new Issue(
+                    id,
+                    summary ?? "(aus Kalender-Regel)",
+                    dash > 0 ? id[..dash] : id,
+                    Type: null,
+                    State: null,
+                    Priority: null,
+                    EstimateMinutes: null,
+                    SpentMinutes: null,
+                    Updated: now
+                )
+            );
+        }
+        return [.. known, .. extra];
     }
 }
