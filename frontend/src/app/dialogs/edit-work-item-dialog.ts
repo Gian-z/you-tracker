@@ -31,7 +31,11 @@ const DURATION_CHIPS = ['15m', '30m', '1h', '2h', '4h'];
   template: `
     <div class="overlay" (click)="cancel()">
       <div class="dialog" role="dialog" aria-label="Buchung bearbeiten" (click)="$event.stopPropagation()">
-        <h2>Buchung bearbeiten</h2>
+        <div class="dialog-head-row">
+          <h2>Buchung bearbeiten</h2>
+          <button type="button" class="icon" (click)="cancel()" aria-label="Schliessen">✕</button>
+        </div>
+        <!-- Deliberately no TicketPicker here: moving a booking to another issue = delete + re-book. -->
         <div class="dialog-issue">
           <span class="issue-id">{{ item().issueId }}</span>
           <span class="muted">{{ item().issueSummary }}</span>
@@ -75,7 +79,12 @@ const DURATION_CHIPS = ['15m', '30m', '1h', '2h', '4h'];
           }
           <div class="dialog-actions">
             <button type="button" class="secondary" (click)="cancel()" [disabled]="saving()">Abbrechen</button>
-            <button type="submit" class="primary" [disabled]="saving()">
+            <button
+              type="submit"
+              class="primary"
+              [disabled]="saving()"
+              style="background: var(--green-strong); border-color: var(--green-strong); color: #08140b;"
+            >
               @if (saving()) {
                 <span class="spinner"></span>
               }

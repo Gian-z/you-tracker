@@ -4,6 +4,7 @@ import { SubtaskChoice, SubtaskPickerDialog } from '../dialogs/subtask-picker-di
 import { formatDuration, parseDuration, toIsoDate } from '../format';
 import { BookingTarget, TaskListItem, WorkItem, WorkLogRequest } from '../models';
 import { BookingService } from '../services/booking.service';
+import { SettingsService } from '../services/settings.service';
 
 /**
  * One-keystroke booking directly in a ticket-table row: type a duration
@@ -50,6 +51,7 @@ import { BookingService } from '../services/booking.service';
 })
 export class InlineBook {
   private readonly booking = inject(BookingService);
+  private readonly settings = inject(SettingsService);
 
   readonly issue = input.required<TaskListItem>();
 
@@ -78,12 +80,14 @@ export class InlineBook {
     const colon = raw.indexOf(':');
     const durationPart = colon >= 0 ? raw.slice(0, colon) : raw;
     const comment = colon >= 0 ? raw.slice(colon + 1).trim() : '';
-    const minutes = parseDuration(durationPart);
-    if (minutes === null) {
+    const parsed = parseDuration(durationPart);
+    if (parsed === null) {
       this.invalid.set(true);
       this.errorMsg.set('Ungültige Dauer (z.B. 1h 30m, 90m, 1.5h)');
       return;
     }
+    // Rundung: Timer- & Schnellbuchungen
+    const minutes = this.settings.round(parsed);
 
     const request: WorkLogRequest = {
       issueId: this.issue().issueId,

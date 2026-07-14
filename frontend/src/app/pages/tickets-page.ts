@@ -25,6 +25,7 @@ interface StateCount {
   template: `
     <div class="page">
       <div class="toolbar">
+        <h1 style="margin:0;font-size:1.2rem">Tickets</h1>
         <span class="segmented" role="tablist">
           <button
             type="button"
@@ -40,7 +41,7 @@ interface StateCount {
             [class.active]="segment() === 'pool'"
             (click)="segment.set('pool')"
           >
-            Sprint-Pool
+            Sprint-Pool{{ pool().length > 0 ? ' · ' + pool().length : '' }}
           </button>
           <button
             type="button"
@@ -49,13 +50,13 @@ interface StateCount {
             (click)="segment.set('sprint')"
             title="Alle Tickets im aktuellen Sprint — z.B. für Testing/Review auf Kollegen-Tickets"
           >
-            Sprint (alle)
+            Ganzer Sprint
           </button>
         </span>
         <input
           type="search"
           class="filter-input"
-          placeholder="Filtern nach ID, Titel, Status…"
+          placeholder="Filtern… (Titel, ID)"
           [(ngModel)]="filter"
           aria-label="Tickets filtern"
         />
@@ -88,80 +89,103 @@ interface StateCount {
       @if (loading()) {
         <div class="loading"><span class="spinner"></span> Tickets laden…</div>
       } @else {
-        <div class="table-scroll sticky-head">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th class="sortable" (click)="sortBy('id')">ID{{ arrow('id') }}</th>
-                <th>Titel</th>
-                <th class="sortable" (click)="sortBy('state')">Status{{ arrow('state') }}</th>
-                @if (segment() === 'sprint') {
-                  <th class="sortable" (click)="sortBy('developer')">Entwickler{{ arrow('developer') }}</th>
-                }
-                <th class="sortable" (click)="sortBy('priority')">Priorität{{ arrow('priority') }}</th>
-                <th class="sortable nowrap" (click)="sortBy('spent')" title="Gebucht / Schätzung">
-                  Ist / Soll{{ arrow('spent') }}
-                </th>
-                <th class="sortable" (click)="sortBy('updated')">Aktualisiert{{ arrow('updated') }}</th>
-                @if (dev.isSelf()) {
-                  <th>Buchen</th>
-                }
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (t of filtered(); track t.issueId) {
+        <div class="card flush">
+          <div class="table-scroll sticky-head">
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td class="nowrap">
-                    <a [href]="t.webUrl" target="_blank" rel="noopener">{{ t.issueId }}</a>
-                    @if (booking.isFeature(t)) {
-                      <span class="redirect-badge" [title]="redirectHint(t)">↪</span>
-                    }
-                  </td>
-                  <td class="summary-cell">{{ t.summary }}</td>
-                  <td class="nowrap"><span class="badge neutral">{{ t.state ?? '–' }}</span></td>
+                  <th class="sortable" (click)="sortBy('state')">Status{{ arrow('state') }}</th>
+                  <th class="sortable" (click)="sortBy('priority')">Prio{{ arrow('priority') }}</th>
+                  <th class="sortable" (click)="sortBy('id')">Ticket{{ arrow('id') }}</th>
                   @if (segment() === 'sprint') {
-                    <td class="nowrap" [title]="developerName(t)">{{ t.developer ?? '–' }}</td>
+                    <th class="sortable" (click)="sortBy('developer')">Entwickler{{ arrow('developer') }}</th>
                   }
-                  <td class="nowrap">{{ t.priority ?? '–' }}</td>
-                  <td class="nowrap" [class.over]="isOver(t)">
-                    {{ t.spent ?? '0m' }} <span class="muted">/ {{ t.estimate ?? '–' }}</span>
-                  </td>
-                  <td class="nowrap muted">{{ rel(t.updated) }}</td>
-                  @if (dev.isSelf()) {
-                    <td class="nowrap inline-book-cell">
-                      <app-inline-book [issue]="t" />
+                  <th class="sortable nowrap" (click)="sortBy('spent')">
+                    Gebucht / Schätzung{{ arrow('spent') }}
+                  </th>
+                  <th class="sortable" (click)="sortBy('updated')">Aktiv{{ arrow('updated') }}</th>
+                  <th>Buchen</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of filtered(); track t.issueId) {
+                  <tr>
+                    <td class="nowrap">
+                      <span class="state-chip" style="background:var(--surface-2)">{{ t.state ?? '–' }}</span>
                     </td>
-                  }
-                  <td class="nowrap row-actions">
-                    @if (dev.isSelf()) {
-                      <button type="button" class="icon" title="Timer starten" (click)="start(t)">▶</button>
-                      <button type="button" class="icon" title="Zeit buchen" (click)="logIssue.set(t)">✎</button>
-                    } @else {
-                      <span class="muted" title="Buchungen werden immer als du erstellt — wechsle zurück zu dir selbst">nur lesen</span>
-                    }
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="11" class="muted empty-cell">
-                    @if (current().length === 0) {
-                      @if (segment() === 'pool') {
-                        Kein Sprint-Pool (oder keine Pool-Query konfiguriert).
-                      } @else if (segment() === 'sprint') {
-                        Keine Sprint-Tickets — youTrack.sprintQuery in config.json konfigurieren
-                        (z.B. Board ST6-Sprint: {{ '{' }}Aktueller Sprint{{ '}' }}).
-                      } @else {
-                        Keine Tickets gefunden.
+                    <td class="nowrap" style="font-weight:600" [style.color]="prioColor(t.priority)">
+                      {{ t.priority ?? '–' }}
+                    </td>
+                    <td class="summary-cell">
+                      <a class="issue-id" [href]="t.webUrl" target="_blank" rel="noopener">{{ t.issueId }}</a>
+                      {{ t.summary }}
+                      @if (booking.isFeature(t)) {
+                        <span class="redirect-badge" [title]="redirectHint(t)">↪</span>
                       }
-                    } @else {
-                      Keine Tickets passen zum Filter.
+                    </td>
+                    @if (segment() === 'sprint') {
+                      <td class="nowrap" [title]="developerName(t)">{{ t.developer ?? '–' }}</td>
                     }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+                    <td class="nowrap" [class.over]="isOver(t)">
+                      <span style="display:flex;align-items:center;gap:0.5rem">
+                        @if (spentPct(t) !== null) {
+                          <span class="meter" style="flex:1;min-width:3.5rem;height:5px">
+                            @if (spentPct(t)! > 0) {
+                              <span
+                                class="meter-fill"
+                                [class.warn]="isOver(t)"
+                                [style.width.%]="spentPct(t)"
+                              ></span>
+                            }
+                          </span>
+                        }
+                        <span class="mono small nowrap">
+                          {{ t.spent ?? '0m' }} <span class="muted">/ {{ t.estimate ?? '–' }}</span>
+                        </span>
+                      </span>
+                    </td>
+                    <td class="nowrap muted mono small">{{ rel(t.updated) }}</td>
+                    @if (dev.isSelf()) {
+                      <td class="nowrap inline-book-cell">
+                        <span style="display:flex;align-items:center;gap:0.15rem">
+                          <button type="button" class="icon" title="Zeit buchen" (click)="logIssue.set(t)">✎</button>
+                          <button type="button" class="icon" title="Timer starten" (click)="start(t)">▶</button>
+                          <app-inline-book [issue]="t" />
+                        </span>
+                      </td>
+                    } @else {
+                      <td
+                        class="nowrap muted small"
+                        title="Buchungen werden immer als du erstellt — wechsle zurück zu dir selbst"
+                      >
+                        nur lesen
+                      </td>
+                    }
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="7" class="muted empty-cell">
+                      @if (current().length === 0) {
+                        @if (segment() === 'pool') {
+                          Kein Sprint-Pool (oder keine Pool-Query konfiguriert).
+                        } @else if (segment() === 'sprint') {
+                          Keine Sprint-Tickets — youTrack.sprintQuery in config.json konfigurieren
+                          (z.B. Board ST6-Sprint: {{ '{' }}Aktueller Sprint{{ '}' }}).
+                        } @else {
+                          Keine Tickets gefunden.
+                        }
+                      } @else {
+                        Keine Tickets passen zum Filter.
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="hint-foot">
+            ↪ = Team-Regel: Zeit gehört auf die Task-Subtasks — Buchung wird automatisch umgeleitet.
+          </div>
         </div>
       }
     </div>
@@ -316,6 +340,30 @@ export class TicketsPage {
     const spent = parseDuration(t.spent ?? '');
     const estimate = parseDuration(t.estimate ?? '');
     return spent !== null && estimate !== null && spent > estimate;
+  }
+
+  /** Prio text color per mockup: Kritisch rot, Hoch amber, Niedrig gedämpft. */
+  prioColor(priority: string | null): string | null {
+    switch (priority) {
+      case 'Kritisch':
+        return 'var(--red)';
+      case 'Hoch':
+        return 'var(--amber)';
+      case 'Niedrig':
+        return 'var(--muted-2)';
+      default:
+        return null;
+    }
+  }
+
+  /** Fill percentage for the spent/estimate bar; null when the estimate is not parsable. */
+  spentPct(t: TaskListItem): number | null {
+    const estimate = parseDuration(t.estimate ?? '');
+    if (estimate === null) {
+      return null;
+    }
+    const spent = parseDuration(t.spent ?? '') ?? 0;
+    return Math.min(100, (spent / estimate) * 100);
   }
 
   developerName(item: TaskListItem): string {

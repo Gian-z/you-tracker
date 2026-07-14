@@ -12,37 +12,38 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { formatDuration, parseDuration, toIsoDate } from '../format';
+import { TicketPicker } from '../components/ticket-picker';
+import { formatClock, formatDayLabel, formatDuration, parseDuration, toIsoDate } from '../format';
 import { BookingTarget, TaskListItem, WorkItem, WorkType } from '../models';
 import { ApiService } from '../services/api.service';
 import { BookingService } from '../services/booking.service';
+import { DayTargetService } from '../services/day-target.service';
 import { TodayStatusService } from '../services/today-status.service';
 import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-log-time-dialog',
-  imports: [FormsModule],
+  imports: [FormsModule, TicketPicker],
   host: { '(document:keydown.escape)': 'cancel()' },
   template: `
     <div class="overlay" (click)="cancel()">
       <div class="dialog" role="dialog" aria-label="Zeit buchen" (click)="$event.stopPropagation()">
-        <h2>Zeit buchen</h2>
-        @if (pickIssue()) {
-          <label>
-            Ticket
-            <select name="pickedIssue" [(ngModel)]="pickedIssueId" required>
-              <option value="" disabled>Ticket wählen…</option>
-              @for (i of ownIssues(); track i.issueId) {
-                <option [value]="i.issueId">{{ i.issueId }} – {{ i.summary }}</option>
-              }
-            </select>
-          </label>
-        } @else {
-          <div class="dialog-issue">
-            <span class="issue-id">{{ issueId() }}</span>
-            <span class="muted">{{ issueSummary() }}</span>
-          </div>
-        }
+        <div class="dialog-head-row">
+          <h2>Zeit buchen</h2>
+          <button type="button" class="icon" (click)="cancel()" aria-label="Schliessen">✕</button>
+        </div>
+        <div class="dialog-issue" style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+          <app-ticket-picker
+            [issueId]="currentIssueId() || null"
+            [issueSummary]="currentSummary()"
+            [placeholder]="'Ticket wählen'"
+            (picked)="onTicketPicked($event)"
+          />
+          <span class="muted small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            {{ currentSummary() }}
+          </span>
+          <span class="muted small" style="white-space: nowrap;">{{ dateLabel() }}</span>
+        </div>
 
         @if (target(); as t) {
           @if (t.kind === 'redirected') {
@@ -124,16 +125,26 @@ import { ToastService } from '../services/toast.service';
               <input type="text" name="presetName" [(ngModel)]="presetName" placeholder="z.B. Daily Standup" autocomplete="off" />
             </label>
           }
+          @if (overSollMinutes() > 0) {
+            <div class="banner" style="background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber);">
+              ⚠ Übersteigt dein heutiges Soll um {{ overSollLabel() }} — trotzdem möglich.
+            </div>
+          }
           @if (error(); as err) {
             <div class="banner error">{{ err }}</div>
           }
           <div class="dialog-actions">
             <button type="button" class="secondary" (click)="cancel()" [disabled]="saving()">Abbrechen</button>
-            <button type="submit" class="primary" [disabled]="saving() || !targetReady()">
+            <button
+              type="submit"
+              class="primary"
+              [disabled]="saving() || !targetReady()"
+              style="background: var(--green-strong); border-color: var(--green-strong); color: #08140b;"
+            >
               @if (saving()) {
                 <span class="spinner"></span>
               }
-              Buchen
+              {{ saveLabel() }}
             </button>
           </div>
         </form>
@@ -145,6 +156,7 @@ export class LogTimeDialog {
   private readonly api = inject(ApiService);
   private readonly booking = inject(BookingService);
   private readonly todayStatus = inject(TodayStatusService);
+  private readonly dayTarget = inject(DayTargetService);
   private readonly toast = inject(ToastService);
 
   private readonly durationInput = viewChild<ElementRef<HTMLInputElement>>('durationInput');
@@ -159,7 +171,7 @@ export class LogTimeDialog {
     return chips;
   });
 
-  /** Empty string switches the dialog into pick-a-ticket mode (e.g. per-day booking). */
+  /** Empty string starts the dialog without a ticket — the TicketPicker chip chooses one. */
   readonly issueId = input.required<string>();
   readonly issueSummary = input<string>('');
   readonly initialMinutes = input<number | null>(null);
@@ -183,14 +195,33 @@ export class LogTimeDialog {
   readonly target = signal<BookingTarget | null>(null);
   readonly chosenTargetId = signal('');
 
-  /** Pick-a-ticket mode (no fixed issue passed in). */
-  readonly pickIssue = computed(() => this.issueId() === '');
-  readonly ownIssues = signal<TaskListItem[]>([]);
-  readonly pickedIssueId = signal('');
+  /** Ticket picked via the chip — overrides the issue passed in. */
+  readonly picked = signal<TaskListItem | null>(null);
 
-  readonly currentIssueId = computed(() =>
-    this.pickIssue() ? this.pickedIssueId() : this.issueId(),
-  );
+  readonly currentIssueId = computed(() => this.picked()?.issueId ?? this.issueId());
+  readonly currentSummary = computed(() => this.picked()?.summary ?? this.issueSummary());
+
+  readonly dateLabel = computed(() => formatDayLabel(this.date()));
+
+  /** "{dur} buchen" as soon as the duration parses (mockup save button). */
+  readonly saveLabel = computed(() => {
+    const minutes = parseDuration(this.duration());
+    return minutes === null ? 'Buchen' : `${formatDuration(minutes)} buchen`;
+  });
+
+  /** New booking for today exceeding the day target → amber warning (never blocks). */
+  readonly overSollMinutes = computed(() => {
+    if (this.date() !== toIsoDate(new Date())) {
+      return 0;
+    }
+    const minutes = parseDuration(this.duration());
+    if (minutes === null) {
+      return 0;
+    }
+    return Math.max(0, this.todayStatus.bookedMinutes() + minutes - this.dayTarget.targetToday());
+  });
+
+  readonly overSollLabel = computed(() => formatClock(this.overSollMinutes()));
 
   /** Ambiguous targets need an explicit choice; noTask needs the explicit checkbox. */
   readonly targetReady = computed(() => {
@@ -218,11 +249,13 @@ export class LogTimeDialog {
         this.date.set(date);
       }
     });
+    // Re-run the booking-target pre-flight whenever the ticket changes (chip pick included).
     effect(() => {
       const issueId = this.currentIssueId();
       untracked(() => {
         this.target.set(null);
         this.chosenTargetId.set('');
+        this.allowFeature.set(false);
         if (issueId === '') {
           return;
         }
@@ -234,16 +267,6 @@ export class LogTimeDialog {
     });
     // `autofocus` is unreliable on dynamically inserted dialogs.
     afterNextRender(() => this.durationInput()?.nativeElement.focus());
-    effect(() => {
-      if (this.pickIssue()) {
-        untracked(() =>
-          void this.api
-            .getIssues()
-            .then((issues) => this.ownIssues.set(issues))
-            .catch(() => undefined),
-        );
-      }
-    });
     this.api
       .getWorkTypes()
       .then((types) => {
@@ -256,17 +279,14 @@ export class LogTimeDialog {
       .catch((err: Error) => this.error.set(`Arbeitstypen konnten nicht geladen werden: ${err.message}`));
   }
 
+  onTicketPicked(item: TaskListItem): void {
+    this.picked.set(item);
+  }
+
   cancel(): void {
     if (!this.saving()) {
       this.closed.emit();
     }
-  }
-
-  private currentSummary(): string {
-    if (!this.pickIssue()) {
-      return this.issueSummary();
-    }
-    return this.ownIssues().find((i) => i.issueId === this.pickedIssueId())?.summary ?? '';
   }
 
   /** Where the booking actually lands, after redirect/picker/confirmation. */

@@ -1,7 +1,8 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { formatDuration, formatShortDate, parseDuration } from '../format';
-import { CommitResult, UnmatchedItem, WorkLogDraft } from '../models';
+import { TicketPicker } from '../components/ticket-picker';
+import { formatDuration, formatShortDate, parseDuration, toIsoDate } from '../format';
+import { CommitResult, TaskListItem, UnmatchedItem, WorkLogDraft } from '../models';
 import { ApiService } from '../services/api.service';
 import { DevService } from '../services/dev.service';
 import { RefreshService } from '../services/refresh.service';
@@ -11,16 +12,21 @@ interface DraftRow {
   checked: boolean;
   duration: string;
   comment: string;
+  /** True for rows created by assigning an unmatched item — shown as "manuell" badge. */
+  manual: boolean;
 }
 
 @Component({
   selector: 'app-draft-review-dialog',
-  imports: [FormsModule],
+  imports: [FormsModule, TicketPicker],
   host: { '(document:keydown.escape)': 'cancel()' },
   template: `
     <div class="overlay" (click)="cancel()">
       <div class="dialog dialog-wide" role="dialog" aria-label="Entwürfe prüfen" (click)="$event.stopPropagation()">
-        <h2>Entwürfe prüfen</h2>
+        <div class="dialog-head-row">
+          <h2>✦ Entwürfe prüfen</h2>
+          <button type="button" class="icon" (click)="cancel()" aria-label="Schliessen">✕</button>
+        </div>
 
         @if (result(); as res) {
           <div class="commit-result">
@@ -40,71 +46,94 @@ interface DraftRow {
             <button type="button" class="primary" (click)="closed.emit()">Schliessen</button>
           </div>
         } @else {
+          <div class="muted small" style="margin-bottom: 0.85rem;">
+            Nur angehakte Zeilen werden geschrieben — nichts erreicht YouTrack ohne deine Bestätigung.
+          </div>
+
           @if (rows().length > 0) {
-            <div class="table-scroll">
-              <table class="data-table drafts-table">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>Ticket</th>
-                    <th>Datum</th>
-                    <th>Dauer</th>
-                    <th>Typ</th>
-                    <th>Kommentar</th>
-                    <th>Konfidenz</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of rows(); track $index) {
-                    <tr [class.unchecked]="!row.checked">
-                      <td>
-                        <input
-                          type="checkbox"
-                          [ngModel]="row.checked"
-                          (ngModelChange)="setChecked($index, $event)"
-                          [attr.aria-label]="'Übernehmen: ' + row.draft.issueId"
-                        />
-                      </td>
-                      <td>
-                        <span class="issue-id">{{ row.draft.issueId }}</span>
-                        <div class="muted small">{{ row.draft.issueSummary }}</div>
-                      </td>
-                      <td class="nowrap">{{ shortDate(row.draft.date) }}</td>
-                      <td>
-                        <input
-                          type="text"
-                          class="minutes-input"
-                          [(ngModel)]="row.duration"
-                          [disabled]="!row.checked"
-                          placeholder="1h 30m"
-                        />
-                      </td>
-                      <td>{{ row.draft.workTypeName ?? '–' }}</td>
-                      <td>
-                        <input type="text" class="comment-input" [(ngModel)]="row.comment" [disabled]="!row.checked" />
-                        @if (row.draft.reasoning) {
-                          <div class="muted small" [title]="row.draft.reasoning">{{ row.draft.reasoning }}</div>
-                        }
-                      </td>
-                      <td>
-                        <span class="badge" [class]="confidenceClass(row.draft.confidence)">{{ row.draft.confidence }}</span>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.85rem; max-height: 50vh; overflow-y: auto;">
+              @for (row of rows(); track $index) {
+                <div
+                  style="display: flex; gap: 0.7rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.8rem;"
+                  [style.opacity]="row.checked ? null : 0.55"
+                >
+                  <input
+                    type="checkbox"
+                    style="margin-top: 3px;"
+                    [ngModel]="row.checked"
+                    (ngModelChange)="setChecked($index, $event)"
+                    [attr.aria-label]="'Übernehmen: ' + row.draft.issueId"
+                  />
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.25rem; min-width: 0;">
+                      <app-ticket-picker
+                        [issueId]="row.draft.issueId"
+                        [issueSummary]="row.draft.issueSummary"
+                        (picked)="onRowTicketPicked($index, $event)"
+                      />
+                      <span class="muted small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ row.draft.issueSummary }}
+                      </span>
+                      <input
+                        type="text"
+                        class="num"
+                        style="width: 4.2rem; text-align: center;"
+                        [ngModel]="row.duration"
+                        (ngModelChange)="setDuration($index, $event)"
+                        [disabled]="!row.checked"
+                        placeholder="1h 30m"
+                        [attr.aria-label]="'Dauer: ' + row.draft.issueId"
+                      />
+                      <span class="muted small nowrap">{{ shortDate(row.draft.date) }}</span>
+                      @if (row.draft.workTypeName; as typeName) {
+                        <span class="muted small nowrap">{{ typeName }}</span>
+                      }
+                      @if (row.manual) {
+                        <span class="badge neutral">manuell</span>
+                      } @else {
+                        <span class="badge" [class]="confidenceClass(row.draft.confidence)">
+                          {{ confidenceLabel(row.draft.confidence) }}
+                        </span>
+                      }
+                    </div>
+                    <input
+                      type="text"
+                      style="width: 100%;"
+                      [ngModel]="row.comment"
+                      (ngModelChange)="setComment($index, $event)"
+                      [disabled]="!row.checked"
+                      placeholder="Kommentar"
+                      [attr.aria-label]="'Kommentar: ' + row.draft.issueId"
+                    />
+                    @if (row.draft.reasoning) {
+                      <div class="muted small" [title]="row.draft.reasoning" style="margin-top: 0.25rem;">
+                        {{ row.draft.reasoning }}
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
             </div>
           } @else {
             <div class="banner">No drafts were produced.</div>
           }
 
-          @if (unmatched().length > 0) {
+          @if (unmatchedRows().length > 0) {
             <div class="unmatched">
               <h3>Nicht zugeordnet</h3>
-              @for (item of unmatched(); track $index) {
-                <div class="unmatched-item">
-                  <span>{{ item.text }}</span>
-                  <span class="muted">— {{ item.reason }}</span>
+              @for (item of unmatchedRows(); track $index) {
+                <div
+                  class="unmatched-item"
+                  style="display: flex; align-items: center; gap: 0.7rem; border: 1px dashed var(--border); border-radius: 9px; padding: 0.55rem 0.8rem; margin-bottom: 0.4rem;"
+                >
+                  <span style="flex: 1; min-width: 0;">
+                    <span style="display: block;">{{ item.text }}</span>
+                    <span class="muted small">{{ item.reason }}</span>
+                  </span>
+                  <app-ticket-picker
+                    [placeholder]="'Ticket zuweisen'"
+                    (picked)="assignUnmatched($index, $event)"
+                  />
                 </div>
               }
             </div>
@@ -120,12 +149,13 @@ interface DraftRow {
             </div>
           }
           <div class="dialog-actions">
-            <button type="button" class="secondary" (click)="cancel()" [disabled]="committing()">Abbrechen</button>
+            <button type="button" class="secondary" (click)="cancel()" [disabled]="committing()">Verwerfen</button>
             <button
               type="button"
               class="primary"
               (click)="commit()"
               [disabled]="committing() || checkedCount() === 0 || !dev.isSelf()"
+              style="background: var(--green-strong); border-color: var(--green-strong); color: #08140b;"
             >
               @if (committing()) {
                 <span class="spinner"></span>
@@ -150,6 +180,8 @@ export class DraftReviewDialog {
   readonly committed = output<CommitResult>();
 
   readonly rows = signal<DraftRow[]>([]);
+  /** Local editable copy — assigning a ticket moves the item into rows(). */
+  readonly unmatchedRows = signal<UnmatchedItem[]>([]);
   readonly committing = signal(false);
   readonly error = signal<string | null>(null);
   readonly result = signal<CommitResult | null>(null);
@@ -164,13 +196,59 @@ export class DraftReviewDialog {
           checked: true,
           duration: formatDuration(draft.minutes),
           comment: draft.comment ?? '',
+          manual: false,
         })),
       );
+    });
+    effect(() => {
+      this.unmatchedRows.set([...this.unmatched()]);
     });
   }
 
   setChecked(index: number, checked: boolean): void {
     this.rows.update((rows) => rows.map((row, i) => (i === index ? { ...row, checked } : row)));
+  }
+
+  setDuration(index: number, duration: string): void {
+    this.rows.update((rows) => rows.map((row, i) => (i === index ? { ...row, duration } : row)));
+  }
+
+  setComment(index: number, comment: string): void {
+    this.rows.update((rows) => rows.map((row, i) => (i === index ? { ...row, comment } : row)));
+  }
+
+  /** Reassign a draft to another ticket (the chip picker). */
+  onRowTicketPicked(index: number, picked: TaskListItem): void {
+    this.rows.update((rows) =>
+      rows.map((row, i) =>
+        i === index
+          ? { ...row, draft: { ...row.draft, issueId: picked.issueId, issueSummary: picked.summary } }
+          : row,
+      ),
+    );
+  }
+
+  /** Turn an unmatched item into a new checked draft row (badge "manuell"). */
+  assignUnmatched(index: number, picked: TaskListItem): void {
+    const item = this.unmatchedRows()[index];
+    if (!item) {
+      return;
+    }
+    const draft: WorkLogDraft = {
+      issueId: picked.issueId,
+      issueSummary: picked.summary,
+      confidence: 'low',
+      date: toIsoDate(new Date()),
+      minutes: 60,
+      workTypeName: null,
+      comment: item.text,
+      reasoning: `Manuell zugewiesen — ${item.reason}`,
+    };
+    this.rows.update((rows) => [
+      ...rows,
+      { draft, checked: true, duration: formatDuration(draft.minutes), comment: item.text, manual: true },
+    ]);
+    this.unmatchedRows.update((rows) => rows.filter((_, i) => i !== index));
   }
 
   confidenceClass(confidence: string): string {
@@ -181,6 +259,17 @@ export class DraftReviewDialog {
         return 'badge amber';
       default:
         return 'badge red';
+    }
+  }
+
+  confidenceLabel(confidence: string): string {
+    switch (confidence) {
+      case 'high':
+        return 'hoch';
+      case 'medium':
+        return 'mittel';
+      default:
+        return 'niedrig';
     }
   }
 

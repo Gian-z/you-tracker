@@ -387,6 +387,12 @@
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+.banner.warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-color: var(--amber-border);
+}
+
 .loading {
   display: flex;
   align-items: center;
@@ -874,6 +880,22 @@ button.icon.danger {
   display: grid;
   gap: var(--space-3);
   align-content: start;
+}
+
+/* mockup's Heute bottom grid: bookings 1fr | top tickets 1.2fr */
+.dash-grid.wide-right {
+  grid-template-columns: 1fr 1.2fr;
+}
+
+@media (max-width: 70rem) {
+  .dash-grid.wide-right {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gap-pill.neutral {
+  background: var(--surface-2);
+  color: var(--muted);
 }
 
 .pool-row {
