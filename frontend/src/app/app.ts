@@ -4,10 +4,14 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 import { IssueSearchDialog } from './dialogs/issue-search-dialog';
 import { LogTimeDialog } from './dialogs/log-time-dialog';
+import { SettingsDialog } from './dialogs/settings-dialog';
 import { formatClock, formatElapsed } from './format';
 import { TimerStopResult } from './models';
+import { DayTargetService } from './services/day-target.service';
 import { DevService } from './services/dev.service';
 import { SearchService } from './services/search.service';
+import { SettingsService } from './services/settings.service';
+import { SettingsUiService } from './services/settings-ui.service';
 import { ThemeService } from './services/theme.service';
 import { ToastService } from './services/toast.service';
 import { TimerService } from './services/timer.service';
@@ -15,7 +19,14 @@ import { TodayStatusService } from './services/today-status.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, LogTimeDialog, IssueSearchDialog],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    LogTimeDialog,
+    IssueSearchDialog,
+    SettingsDialog,
+  ],
   host: { '(document:keydown.control.k)': 'openSearch($event)' },
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -25,12 +36,22 @@ export class App {
   protected readonly dev = inject(DevService);
   protected readonly theme = inject(ThemeService);
   protected readonly todayStatus = inject(TodayStatusService);
+  protected readonly dayTarget = inject(DayTargetService);
   protected readonly search = inject(SearchService);
   protected readonly toast = inject(ToastService);
+  protected readonly settings = inject(SettingsService);
+  protected readonly settingsUi = inject(SettingsUiService);
   private readonly router = inject(Router);
+
+  protected readonly devMenuOpen = signal(false);
 
   constructor() {
     void this.dev.init();
+  }
+
+  protected selectDev(login: string): void {
+    this.dev.select(login);
+    this.devMenuOpen.set(false);
   }
 
   private readonly currentUrl = toSignal(
@@ -49,7 +70,7 @@ export class App {
 
   protected readonly todayChip = computed(() => {
     const s = this.todayStatus;
-    return `Heute ${formatClock(s.bookedMinutes())} / ${formatClock(s.targetMinutes())}`;
+    return `${formatClock(s.bookedMinutes())} / ${formatClock(s.targetMinutes())}`;
   });
 
   protected openSearch(event?: Event): void {
@@ -77,7 +98,8 @@ export class App {
     await this.timerAction(async () => {
       const result = await this.timer.stop();
       if (result) {
-        this.stopResult.set(result);
+        // "Rundung: Timer- & Schnellbuchungen" — the prefill is rounded, still editable.
+        this.stopResult.set({ ...result, elapsedMinutes: this.settings.round(result.elapsedMinutes) });
       }
     });
   }

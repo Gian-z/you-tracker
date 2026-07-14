@@ -1,120 +1,110 @@
 <header class="topbar">
-  <span class="brand">you-tracker</span>
+  <span class="brand"><span class="brand-dot"></span>you-tracker</span>
   <nav class="main-nav">
     <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Heute</a>
     <a routerLink="/tickets" routerLinkActive="active">Tickets</a>
     <a routerLink="/woche" routerLinkActive="active">Woche</a>
     <a routerLink="/sprint" routerLinkActive="active">Sprint</a>
   </nav>
-  @if (todayStatus.loaded()) {
-    <a
-      routerLink="/"
-      class="today-chip"
-      [class.ok]="todayStatus.reached()"
-      [class.warn]="!todayStatus.reached()"
-      [title]="todayStatus.gapMinutes() > 0 ? 'Heute fehlen noch Buchungen' : 'Tagesziel erreicht'"
-    >
-      {{ todayChip() }}
-    </a>
-  }
-  <span class="flex-spacer topbar-search-slot">
-    <button type="button" class="search-button" (click)="openSearch()" title="Ticket-Suche (Ctrl+K)">
-      🔍 Suche <span class="muted small">Ctrl+K</span>
-    </button>
-  </span>
-  <button
-    type="button"
-    class="icon theme-toggle"
-    (click)="theme.toggle()"
-    [title]="theme.isDark() ? 'Helles Design' : 'Dunkles Design'"
-    aria-label="Design wechseln"
-  >
-    {{ theme.isDark() ? '☀' : '🌙' }}
+  <span class="flex-spacer"></span>
+  <button type="button" class="search-button" (click)="openSearch()" title="Suchen oder buchen (Ctrl+K)">
+    <span class="search-label">Suchen</span>
+    <kbd>Ctrl K</kbd>
   </button>
-  <span class="dev-picker" [class.other-dev]="!dev.isSelf()" title="Wessen Tickets und Buchungen angezeigt werden">
-    @if (dev.users().length > 0) {
-      <select [value]="dev.selectedLogin()" (change)="onDevChange($event)" aria-label="Entwickler">
-        @for (u of dev.users(); track u.login) {
-          <option
-            [value]="u.login"
-            [selected]="u.login.toLowerCase() === dev.selectedLogin().toLowerCase()"
-          >
-            {{ u.fullName }} ({{ u.login }})
-          </option>
-        }
-      </select>
-    } @else {
-      <input
-        type="text"
-        [value]="dev.selectedLogin()"
-        (change)="onDevChange($event)"
-        placeholder="Login"
-        aria-label="Entwickler-Login"
-        size="10"
-      />
-    }
-    @if (!dev.isSelf()) {
-      <span class="viewing-badge">zeigt {{ dev.selectedName() }}</span>
-    }
-  </span>
   @if (timerError(); as err) {
     <span class="timer-error" (click)="timerError.set(null)" title="Klick zum Ausblenden">{{ err }}</span>
   }
-  @if (timer.state(); as t) {
-    <span class="timer-group">
-      <span
-        class="timer-widget"
-        [class.running]="!timer.isPaused()"
-        [class.paused]="timer.isPaused()"
-        [title]="t.issueId + ' – ' + t.issueSummary"
-      >
-        @if (!timer.isPaused()) {
-          <span class="timer-dot"></span>
-        }
-        {{ timer.isPaused() ? '⏸' : '▶' }} {{ t.issueId }}
-        <span class="timer-clock">{{ elapsed() }}</span>
-      </span>
+  @if (settings.timerOn() && timer.state(); as t) {
+    <span
+      class="timer-pill"
+      [class.running]="!timer.isPaused()"
+      [class.paused]="timer.isPaused()"
+      [title]="t.issueId + ' – ' + t.issueSummary"
+    >
+      <span class="timer-dot" [class.pulsing]="!timer.isPaused()"></span>
+      <span class="timer-label num">{{ t.issueId }} · {{ elapsed() }}</span>
       <button
         type="button"
-        class="timer-btn"
+        class="timer-ghost"
         (click)="togglePause()"
         [disabled]="busy()"
         [title]="timer.isPaused() ? 'Timer fortsetzen' : 'Timer pausieren'"
       >
         {{ timer.isPaused() ? '▶' : '⏸' }}
       </button>
-      <button
-        type="button"
-        class="timer-btn"
-        (click)="stopTimer()"
-        [disabled]="busy()"
-        title="Stoppen und Zeit buchen"
-      >
+      <button type="button" class="timer-book" (click)="stopTimer()" [disabled]="busy()" title="Stoppen und Zeit buchen">
         Buchen
       </button>
       @if (confirmDiscard()) {
-        <button
-          type="button"
-          class="timer-btn timer-btn--danger"
-          (click)="discardTimer()"
-          [disabled]="busy()"
-        >
+        <button type="button" class="timer-ghost danger" (click)="discardTimer()" [disabled]="busy()">
           {{ discardLabel() }} verwerfen?
         </button>
       } @else {
         <button
           type="button"
-          class="timer-btn"
+          class="timer-ghost"
           (click)="armDiscard()"
           [disabled]="busy()"
           title="Timer ohne Buchung verwerfen"
         >
-          Verwerfen
+          ✕
         </button>
       }
     </span>
-  } @else {
-    <span class="timer-widget idle" title="Timer über die Ticket-Liste starten">kein Timer</span>
+  }
+  @if (todayStatus.loaded()) {
+    <a
+      routerLink="/"
+      class="today-chip num"
+      [class.ok]="todayStatus.reached()"
+      [class.warn]="!todayStatus.reached()"
+      [title]="'Heute gebucht / Tagesziel (' + dayTarget.targetSource() + ')'"
+    >
+      {{ todayChip() }}
+    </a>
+  }
+  <button type="button" class="icon-button" (click)="settingsUi.show()" title="Einstellungen" aria-label="Einstellungen">
+    ⚙
+  </button>
+  <span class="dev-slot">
+    <button
+      type="button"
+      class="dev-button num"
+      [class.other-dev]="!dev.isSelf()"
+      (click)="devMenuOpen.set(!devMenuOpen())"
+      title="Entwickler-Ansicht wechseln (nur Lesen)"
+    >
+      {{ dev.selectedLogin() || '?' }}
+    </button>
+    @if (devMenuOpen()) {
+      <span class="dev-menu">
+        @if (dev.users().length > 0) {
+          @for (u of dev.users(); track u.login) {
+            <button
+              type="button"
+              class="dev-menu-item"
+              [class.active]="u.login.toLowerCase() === dev.selectedLogin().toLowerCase()"
+              (click)="selectDev(u.login)"
+            >
+              <span class="num dev-menu-login">{{ u.login }}</span>
+              <span class="dev-menu-name">{{ u.fullName }}</span>
+            </button>
+          }
+        } @else {
+          <input
+            type="text"
+            [value]="dev.selectedLogin()"
+            (change)="onDevChange($event)"
+            placeholder="Login"
+            aria-label="Entwickler-Login"
+          />
+        }
+        <span class="dev-menu-hint">Andere Entwickler: nur Lesen</span>
+      </span>
+    }
+  </span>
+  @if (!dev.isSelf()) {
+    <span class="viewing-badge">zeigt {{ dev.selectedName() }}</span>
   }
 </header>
 
@@ -130,6 +120,10 @@
 
 @if (search.open()) {
   <app-issue-search-dialog (closed)="search.open.set(false)" />
+}
+
+@if (settingsUi.open()) {
+  <app-settings-dialog (closed)="settingsUi.open.set(false)" />
 }
 
 @if (stopResult(); as r) {

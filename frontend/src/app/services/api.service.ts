@@ -2,11 +2,15 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import {
+  AppConfig,
   BookingPreset,
   BookingTarget,
   CommitResult,
+  DayState,
   DraftResult,
   Meta,
+  SaveConfigResult,
+  UserSettings,
   SprintDashboard,
   SprintVerdict,
   TaskListItem,
@@ -196,6 +200,48 @@ export class ApiService {
   aiTriage(dev: string | null = null): Promise<TriageResult> {
     const suffix = dev ? `?dev=${encodeURIComponent(dev)}` : '';
     return this.post<TriageResult>(`/api/ai/triage${suffix}`, {});
+  }
+
+  // --- settings dialog: app config, user settings, per-day presence state, team config ---
+
+  getConfig(): Promise<AppConfig> {
+    return this.get<AppConfig>('/api/config');
+  }
+
+  saveConfig(config: AppConfig): Promise<SaveConfigResult> {
+    return this.put<SaveConfigResult>('/api/config', config);
+  }
+
+  testYouTrack(baseUrl: string, token: string): Promise<{ message: string }> {
+    return this.post<{ message: string }>('/api/config/test/youtrack', { baseUrl, token });
+  }
+
+  testAi(apiKey: string, model: string, cliCommand: string | null = null): Promise<{ message: string }> {
+    return this.post<{ message: string }>('/api/config/test/ai', { apiKey, model, cliCommand });
+  }
+
+  testCalendar(icsUrl: string): Promise<{ message: string }> {
+    return this.post<{ message: string }>('/api/config/test/calendar', { icsUrl });
+  }
+
+  getSettings(): Promise<UserSettings> {
+    return this.get<UserSettings>('/api/settings');
+  }
+
+  saveSettings(settings: UserSettings): Promise<UserSettings> {
+    return this.put<UserSettings>('/api/settings', settings);
+  }
+
+  getDayStates(from: string, to: string): Promise<Record<string, DayState>> {
+    return this.get<Record<string, DayState>>('/api/day-state', { from, to });
+  }
+
+  saveDayState(date: string, state: DayState): Promise<DayState> {
+    return this.put<DayState>(`/api/day-state/${encodeURIComponent(date)}`, state);
+  }
+
+  saveTeam(team: TeamConfig): Promise<TeamConfig> {
+    return this.post<TeamConfig>('/api/team', team);
   }
 
   private withDev(params: Record<string, string>, dev: string | null): Record<string, string> {

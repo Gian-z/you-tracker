@@ -188,6 +188,69 @@ export interface TeamConfig {
   ceremonyPatterns: string[];
   members: TeamMember[];
   sprints: TeamSprint[];
+  /** Preselected sprint for dashboards (null = newest). */
+  activeSprint: string | null;
+}
+
+// --- personal state (settings dialog, presence row) ---
+
+export interface UserSettings {
+  usePresence: boolean;
+  targetMinutes: number | null;
+  defaultIssueId: string | null;
+  defaultIssueSummary: string | null;
+  defaultTypeId: string | null;
+  defaultTypeName: string | null;
+  roundingMinutes: number;
+}
+
+export type DayAbsence = 'none' | 'half' | 'full';
+
+export interface DayState {
+  come: string | null;
+  go: string | null;
+  pauseMinutes: number;
+  absence: DayAbsence;
+}
+
+// --- app config (settings dialog; mirrors the backend AppConfig records) ---
+
+export interface MeetingRule {
+  pattern: string;
+  issueId: string;
+  workTypeName: string | null;
+  comment: string | null;
+}
+
+export interface AppConfig {
+  youTrack: {
+    baseUrl: string;
+    webBaseUrl: string;
+    token: string;
+    issueQuery: string | null;
+    sprintPoolQuery: string | null;
+    featureTypes: string[] | null;
+    taskTypes: string[] | null;
+    sprintQuery: string | null;
+  };
+  anthropic: {
+    apiKey: string;
+    model: string;
+    cliCommand: string;
+    hasApiKey?: boolean;
+  };
+  workday: {
+    targetHours: number;
+    timezone: string;
+    inProgressStates: string[];
+  };
+  git: { scanRoots: string[]; author: string | null } | null;
+  calendar: { icsUrl: string | null; rules: MeetingRule[] | null } | null;
+}
+
+export interface SaveConfigResult {
+  config: AppConfig;
+  requiresRestart: boolean;
 }
 
 export type HeatCellState = 'reached' | 'partial' | 'low' | 'none' | 'today' | 'off' | 'future';

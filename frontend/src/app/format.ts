@@ -91,6 +91,23 @@ export function parseDuration(input: string): number | null {
   return minutes > 0 ? minutes : null;
 }
 
+/** Parses a wall-clock string ("7:45", "07:45", "7.45") into minutes since midnight, or null. */
+export function parseClock(input: string): number | null {
+  const match = (input ?? '').trim().match(/^(\d{1,2})[:.](\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  return h < 24 && m < 60 ? h * 60 + m : null;
+}
+
+/** Formats minutes since midnight as "H:MM" wall-clock (e.g. 465 -> "7:45"). */
+export function formatWallClock(minutesOfDay: number): string {
+  const total = Math.max(0, Math.round(minutesOfDay));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 /** Formats a Date as "yyyy-MM-dd" in local time. */
 export function toIsoDate(d: Date): string {
   const y = d.getFullYear();
