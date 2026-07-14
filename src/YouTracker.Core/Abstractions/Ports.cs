@@ -224,11 +224,14 @@ public interface IPresetStore
     void Save(IReadOnlyList<BookingPreset> presets);
 }
 
-/// <summary>Port for loading app configuration.</summary>
+/// <summary>Port for loading and saving app configuration.</summary>
 public interface IConfigStore
 {
     string ConfigPath { get; }
     bool Exists { get; }
     Config.AppConfig Load();
     string Template { get; }
+
+    /// <summary>Persists the config (settings dialog). Written atomically — it holds secrets.</summary>
+    void Save(Config.AppConfig config);
 }

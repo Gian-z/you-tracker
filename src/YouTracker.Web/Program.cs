@@ -59,11 +59,17 @@ builder.Services.AddYouTrackerGit();
 builder.Services.AddYouTrackerCalendar();
 
 // AI provider: real API key → Anthropic SDK; otherwise the local Claude Code CLI.
+// This choice is fixed for the process lifetime — switching it requires a restart
+// (the settings API reports requiresRestart when the key flips between real/placeholder).
 if (config.Anthropic.HasApiKey)
     builder.Services.AddYouTrackerAnthropic();
 else
     builder.Services.AddYouTrackerClaudeCli();
-builder.Services.AddSingleton(config);
+
+// Config live-reload: the settings dialog swaps the holder; AppConfig resolves per-use so
+// the (transient) infrastructure services always see the current values.
+builder.Services.AddSingleton(new ConfigHolder(config));
+builder.Services.AddTransient<AppConfig>(sp => sp.GetRequiredService<ConfigHolder>().Current);
 
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
@@ -446,8 +452,157 @@ api.MapDelete(
     }
 );
 
+// --- Settings dialog: app config, user settings, per-day presence state, team config ---
+// Everything below reads/writes local %APPDATA% files only. GET /config includes the
+// YouTrack token and API key deliberately — this is a personal localhost-only tool.
+
+api.MapGet(
+    "/config",
+    (IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.QueryAsync(new GetAppConfigQuery(), ct)
+);
+
+api.MapPut(
+    "/config",
+    async (
+        AppConfig request,
+        IDispatcher dispatcher,
+        ConfigHolder holder,
+        TtlCache cache,
+        CancellationToken ct
+    ) =>
+    {
+        var providerBefore = holder.Current.Anthropic.HasApiKey;
+        var saved = await dispatcher.SendAsync(new SaveAppConfigCommand(request), ct);
+        holder.Swap(saved);
+        // Queries/token/base URL may have changed — every cached result is potentially stale.
+        cache.Clear();
+        return new SaveConfigResult(
+            saved,
+            RequiresRestart: saved.Anthropic.HasApiKey != providerBefore
+        );
+    }
+);
+
+// Connection tests probe the SUBMITTED (possibly unsaved) values with ad-hoc adapters.
+api.MapPost(
+    "/config/test/youtrack",
+    async (TestYouTrackRequest request, CancellationToken ct) =>
+    {
+        var probe = new YouTrackClient(
+            new HttpClient(),
+            ProbeConfig(
+                youTrack: new YouTrackConfig(request.BaseUrl, request.BaseUrl, request.Token)
+            )
+        );
+        var user = await ((IUserDirectory)probe).GetCurrentUserAsync(ct);
+        return new { message = $"✓ Verbunden als {user.Login} ({user.FullName})" };
+    }
+);
+
+api.MapPost(
+    "/config/test/ai",
+    async (TestAiRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+    {
+        var anthropic = new AnthropicConfig(
+            request.ApiKey ?? "",
+            string.IsNullOrWhiteSpace(request.Model) ? "claude-opus-4-8" : request.Model,
+            string.IsNullOrWhiteSpace(request.CliCommand) ? "claude" : request.CliCommand
+        );
+        var cfg = ProbeConfig(anthropic: anthropic);
+        YouTracker.Core.Abstractions.IAiProvider provider = anthropic.HasApiKey
+            ? new YouTracker.Infrastructure.Anthropic.AnthropicAiProvider(cfg)
+            : new YouTracker.Infrastructure.ClaudeCli.ClaudeCliAiProvider(cfg);
+        await provider.CompleteTextAsync(
+            "Du bist ein Verbindungstest.",
+            "Antworte mit genau: OK",
+            ct
+        );
+        var label = anthropic.HasApiKey ? $"API-Key gültig — {anthropic.Model}" : "Claude CLI";
+        return new { message = $"✓ {label} verfügbar" };
+    }
+);
+
+api.MapPost(
+    "/config/test/calendar",
+    async (
+        TestCalendarRequest request,
+        AppConfig current,
+        TimeProvider time,
+        CancellationToken ct
+    ) =>
+    {
+        var cfg = ProbeConfig(
+            workday: current.Workday,
+            calendar: new CalendarConfig(request.IcsUrl)
+        );
+        var reader = new YouTracker.Infrastructure.Calendar.IcsMeetingReader(
+            new HttpClient { Timeout = TimeSpan.FromSeconds(15) },
+            cfg
+        );
+        var today = cfg.Today(time);
+        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var meetings = await reader.GetMeetingsAsync(monday, monday.AddDays(6), ct);
+        var week = System.Globalization.ISOWeek.GetWeekOfYear(today.ToDateTime(TimeOnly.MinValue));
+        return new
+        {
+            message = $"✓ ICS erreichbar — {meetings.Count} Termine in KW {week} gefunden",
+        };
+    }
+);
+
+api.MapGet(
+    "/settings",
+    (IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.QueryAsync(new GetUserSettingsQuery(), ct)
+);
+
+api.MapPut(
+    "/settings",
+    (UserSettings request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.SendAsync(new SaveUserSettingsCommand(request), ct)
+);
+
+api.MapGet(
+    "/day-state",
+    (IDispatcher dispatcher, DateOnly from, DateOnly to, CancellationToken ct) =>
+        dispatcher.QueryAsync(new GetDayStatesQuery(from, to), ct)
+);
+
+api.MapPut(
+    "/day-state/{date}",
+    (DateOnly date, DayState request, IDispatcher dispatcher, CancellationToken ct) =>
+        dispatcher.SendAsync(new SaveDayStateCommand(date, request), ct)
+);
+
+// Full team.json replacement (settings dialog → Team tab).
+api.MapPost(
+    "/team",
+    async (TeamConfig request, IDispatcher dispatcher, TtlCache cache, CancellationToken ct) =>
+    {
+        var saved = await dispatcher.SendAsync(new SaveTeamConfigCommand(request), ct);
+        cache.EvictByPrefix("workitems:sprint:");
+        return saved;
+    }
+);
+
 app.Run();
 return 0;
 
 // Query/body dev values: empty or whitespace means "current user".
 static string? Clean(string? dev) => string.IsNullOrWhiteSpace(dev) ? null : dev.Trim();
+
+// Minimal AppConfig for connection probes: only the section under test carries real values.
+static AppConfig ProbeConfig(
+    YouTrackConfig? youTrack = null,
+    AnthropicConfig? anthropic = null,
+    WorkdayConfig? workday = null,
+    CalendarConfig? calendar = null
+) =>
+    new(
+        youTrack ?? new YouTrackConfig("http://localhost", "http://localhost", "probe"),
+        anthropic ?? new AnthropicConfig("", "claude-opus-4-8"),
+        workday ?? new WorkdayConfig(8.0, "Europe/Zurich", ["In Arbeit"]),
+        new GitConfig([]),
+        calendar
+    );

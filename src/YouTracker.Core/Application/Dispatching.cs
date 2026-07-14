@@ -118,6 +118,9 @@ public sealed class TtlCache(TimeProvider time)
     public void Set<T>(string key, T value, TimeSpan ttl) =>
         _entries[key] = (value, time.GetUtcNow() + ttl);
 
+    /// <summary>Drops everything — after a config save, any cached result may be stale.</summary>
+    public void Clear() => _entries.Clear();
+
     public void EvictByPrefix(string prefix)
     {
         foreach (

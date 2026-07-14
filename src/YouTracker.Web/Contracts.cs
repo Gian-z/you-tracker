@@ -42,6 +42,17 @@ public sealed record SprintVerdictsRequest(string SprintName);
 
 public sealed record AddSprintRequest(string Name, DateOnly From, DateOnly To);
 
+public sealed record SaveConfigResult(
+    YouTracker.Core.Config.AppConfig Config,
+    bool RequiresRestart
+);
+
+public sealed record TestYouTrackRequest(string BaseUrl, string Token);
+
+public sealed record TestAiRequest(string? ApiKey, string? Model, string? CliCommand = null);
+
+public sealed record TestCalendarRequest(string IcsUrl);
+
 public sealed record SavePresetRequest(
     string? Id,
     string Name,

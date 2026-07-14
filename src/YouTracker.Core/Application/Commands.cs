@@ -72,3 +72,17 @@ public sealed record SaveSprintAbsencesCommand(
 /// <summary>Adds a sprint to the team config; workdays = Mo–Fr within From..To.</summary>
 public sealed record AddSprintCommand(string Name, DateOnly From, DateOnly To)
     : ICommand<TeamSprint>;
+
+/// <summary>Replaces the whole team config (settings dialog → Team tab).</summary>
+public sealed record SaveTeamConfigCommand(TeamConfig Config) : ICommand<TeamConfig>;
+
+/// <summary>
+/// Persists the app config from the settings dialog. Returns the effective config
+/// (re-loaded, so env-var overrides and defaults are applied consistently).
+/// </summary>
+public sealed record SaveAppConfigCommand(Config.AppConfig Config) : ICommand<Config.AppConfig>;
+
+public sealed record SaveUserSettingsCommand(UserSettings Settings) : ICommand<UserSettings>;
+
+/// <summary>Upserts one day's presence/absence state.</summary>
+public sealed record SaveDayStateCommand(DateOnly Date, DayState State) : ICommand<DayState>;

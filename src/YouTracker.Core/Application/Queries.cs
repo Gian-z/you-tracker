@@ -113,6 +113,17 @@ public sealed record GenerateSprintVerdictsQuery(string SprintName)
 
 public sealed record GetPresetsQuery : IQuery<IReadOnlyList<BookingPreset>>;
 
+// --- Personal state (settings dialog, presence row) — local files, never YouTrack ---
+
+/// <summary>The full app config for the settings dialog (includes secrets; localhost-only API).</summary>
+public sealed record GetAppConfigQuery : IQuery<Config.AppConfig>;
+
+public sealed record GetUserSettingsQuery : IQuery<UserSettings>;
+
+/// <summary>Presence/absence state per day within From..To (days without state are omitted).</summary>
+public sealed record GetDayStatesQuery(DateOnly From, DateOnly To)
+    : IQuery<IReadOnlyDictionary<DateOnly, DayState>>;
+
 public sealed record GetHygieneFindingsQuery(string? Dev = null)
     : IQuery<IReadOnlyList<HygieneFinding>>;
 

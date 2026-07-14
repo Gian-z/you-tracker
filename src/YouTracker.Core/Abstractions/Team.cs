@@ -18,6 +18,7 @@ public sealed record TeamSprint(
     IReadOnlyList<TeamAbsence> Absences
 );
 
+/// <summary><paramref name="ActiveSprint"/>: preselected sprint for dashboards (null = newest).</summary>
 public sealed record TeamConfig(
     string Name,
     IReadOnlyList<string> Projects,
@@ -25,7 +26,8 @@ public sealed record TeamConfig(
     string FeatureSprintQuery,
     IReadOnlyList<string> CeremonyPatterns,
     IReadOnlyList<TeamMember> Members,
-    IReadOnlyList<TeamSprint> Sprints
+    IReadOnlyList<TeamSprint> Sprints,
+    string? ActiveSprint = null
 );
 
 /// <summary>Persistence port for the team configuration (UI can edit sprint absences).</summary>

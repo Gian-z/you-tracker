@@ -153,6 +153,36 @@ public static class ServiceCollectionExtensions
             AddSprintCommandHandler
         >();
 
+        // Personal state & config (settings dialog)
+        services.AddTransient<
+            IQueryHandler<GetAppConfigQuery, Config.AppConfig>,
+            GetAppConfigQueryHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<SaveAppConfigCommand, Config.AppConfig>,
+            SaveAppConfigCommandHandler
+        >();
+        services.AddTransient<
+            IQueryHandler<GetUserSettingsQuery, UserSettings>,
+            GetUserSettingsQueryHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<SaveUserSettingsCommand, UserSettings>,
+            SaveUserSettingsCommandHandler
+        >();
+        services.AddTransient<
+            IQueryHandler<GetDayStatesQuery, IReadOnlyDictionary<DateOnly, DayState>>,
+            GetDayStatesQueryHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<SaveDayStateCommand, DayState>,
+            SaveDayStateCommandHandler
+        >();
+        services.AddTransient<
+            ICommandHandler<SaveTeamConfigCommand, TeamConfig>,
+            SaveTeamConfigCommandHandler
+        >();
+
         // Directory + presets
         services.AddTransient<
             IQueryHandler<GetUsersQuery, IReadOnlyList<UserInfo>>,

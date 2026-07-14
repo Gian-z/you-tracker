@@ -112,6 +112,76 @@ public sealed class JsonConfigStore : IConfigStore
         );
     }
 
+    /// <summary>
+    /// Persists the config in the same camelCase shape <see cref="Load"/> reads. Written via a
+    /// temp file + move so a crash can't truncate the file (it holds the YouTrack token).
+    /// Note: values supplied via YOUTRACK_TOKEN / ANTHROPIC_API_KEY env vars arrive here as the
+    /// effective values and get baked into the file — acceptable for this local settings flow.
+    /// </summary>
+    public void Save(AppConfig config)
+    {
+        var dto = new ConfigDto
+        {
+            YouTrack = new YouTrackDto
+            {
+                BaseUrl = config.YouTrack.BaseUrl,
+                WebBaseUrl = config.YouTrack.WebBaseUrl,
+                Token = config.YouTrack.Token,
+                IssueQuery = config.YouTrack.IssueQuery,
+                SprintPoolQuery = config.YouTrack.SprintPoolQuery,
+                FeatureTypes = config.YouTrack.FeatureTypes?.ToList(),
+                TaskTypes = config.YouTrack.TaskTypes?.ToList(),
+                SprintQuery = config.YouTrack.SprintQuery,
+            },
+            Anthropic = new AnthropicDto
+            {
+                ApiKey = config.Anthropic.ApiKey,
+                Model = config.Anthropic.Model,
+                CliCommand = config.Anthropic.CliCommand,
+            },
+            Workday = new WorkdayDto
+            {
+                TargetHours = config.Workday.TargetHours,
+                Timezone = config.Workday.Timezone,
+                InProgressStates = config.Workday.InProgressStates.ToList(),
+            },
+            Git = config.Git is null
+                ? null
+                : new GitDto
+                {
+                    ScanRoots = config.Git.ScanRoots.ToList(),
+                    Author = config.Git.Author,
+                },
+            Calendar = config.Calendar is null
+                ? null
+                : new CalendarDto
+                {
+                    IcsUrl = config.Calendar.IcsUrl,
+                    Rules = config
+                        .Calendar.Rules?.Select(r => new MeetingRuleDto
+                        {
+                            Pattern = r.Pattern,
+                            IssueId = r.IssueId,
+                            WorkTypeName = r.WorkTypeName,
+                            Comment = r.Comment,
+                        })
+                        .ToList(),
+                },
+        };
+
+        Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
+        var tempPath = ConfigPath + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(dto, WriteOptions));
+        File.Move(tempPath, ConfigPath, overwrite: true);
+    }
+
+    private static readonly JsonSerializerOptions WriteOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     public string Template =>
         """
             {

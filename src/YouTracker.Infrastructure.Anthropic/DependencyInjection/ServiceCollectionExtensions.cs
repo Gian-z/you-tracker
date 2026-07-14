@@ -8,7 +8,8 @@ public static class ServiceCollectionExtensions
     /// <summary>Registers the Claude-backed IAiProvider. AppConfig is provided by the host.</summary>
     public static IServiceCollection AddYouTrackerAnthropic(this IServiceCollection services)
     {
-        services.AddSingleton<IAiProvider, AnthropicAiProvider>();
+        // Transient so a settings-dialog change (model/key) takes effect live.
+        services.AddTransient<IAiProvider, AnthropicAiProvider>();
         return services;
     }
 }

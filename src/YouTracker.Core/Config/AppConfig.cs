@@ -72,6 +72,8 @@ public sealed record AppConfig(
 {
     public int TargetMinutesPerWorkday => (int)Math.Round(Workday.TargetHours * 60);
 
+    // TimeZoneInfo is not JSON-serializable; the config API returns AppConfig directly.
+    [System.Text.Json.Serialization.JsonIgnore]
     public TimeZoneInfo TimeZone => TimeZoneInfo.FindSystemTimeZoneById(Workday.Timezone);
 
     public DateOnly Today(TimeProvider time) =>
