@@ -29,6 +29,7 @@ public sealed class YouTrackClient
 
     private readonly HttpClient _http;
     private readonly AppConfig _config;
+    private readonly Uri _apiBase;
 
     private string? _currentLogin;
 
@@ -39,14 +40,25 @@ public sealed class YouTrackClient
     {
         _http = http;
         _config = config;
-        _http.BaseAddress = new Uri(config.YouTrack.BaseUrl.TrimEnd('/') + "/api/");
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+        _apiBase = new Uri(config.YouTrack.BaseUrl.TrimEnd('/') + "/api/");
+        // Deliberately no mutation of the HttpClient: instances are transient (config
+        // live-reload) and share one HttpClient — base address and auth travel per request.
+    }
+
+    private Task<HttpResponseMessage> SendAsync(
+        HttpMethod method,
+        string url,
+        HttpContent? content,
+        CancellationToken ct
+    )
+    {
+        var request = new HttpRequestMessage(method, new Uri(_apiBase, url)) { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue(
             "Bearer",
-            config.YouTrack.Token
+            _config.YouTrack.Token
         );
-        _http.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json")
-        );
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return _http.SendAsync(request, ct);
     }
 
     public async Task<IReadOnlyList<Issue>> GetOpenIssuesAsync(
@@ -445,7 +457,7 @@ public sealed class YouTrackClient
     )
     {
         var url = $"issues/{issueId}/timeTracking/workItems/{workItemId}";
-        using var response = await _http.DeleteAsync(url, ct);
+        using var response = await SendAsync(HttpMethod.Delete, url, null, ct);
         if (!response.IsSuccessStatusCode)
         {
             var responseBody = await response.Content.ReadAsStringAsync(ct);
@@ -474,7 +486,7 @@ public sealed class YouTrackClient
             Encoding.UTF8,
             "application/json"
         );
-        using var response = await _http.PostAsync(url, content, ct);
+        using var response = await SendAsync(HttpMethod.Post, url, content, ct);
         var responseBody = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
             throw new YouTrackApiException((int)response.StatusCode, responseBody, url);
@@ -493,7 +505,7 @@ public sealed class YouTrackClient
 
     private async Task<T> GetAsync<T>(string url, CancellationToken ct)
     {
-        using var response = await _http.GetAsync(url, ct);
+        using var response = await SendAsync(HttpMethod.Get, url, null, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
             throw new YouTrackApiException((int)response.StatusCode, body, url);

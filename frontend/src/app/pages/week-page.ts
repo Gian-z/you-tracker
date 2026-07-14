@@ -106,7 +106,7 @@ const ABSENCE_OPTIONS: readonly { value: DayAbsence; label: string }[] = [
               >
                 <span class="nowrap">
                   <span style="font-weight:600">{{ weekday(r.day.date) }}</span>
-                  <span class="mono muted small">{{ dayDate(r.day.date) }}</span>
+                  <span class="mono muted small" style="margin-left:0.3rem">{{ dayDate(r.day.date) }}</span>
                   @if (r.isToday) {
                     <span class="small" style="color:var(--accent);font-weight:600">· Heute</span>
                   }

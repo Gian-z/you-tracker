@@ -313,10 +313,15 @@ export class SprintPage {
     ),
   );
 
-  /** Top-3 estimation misses (worst overrun factor first); factor needs an estimate > 0. */
+  /** Top-3 estimation misses (worst overrun factor first). Only real overruns (>1×). */
   readonly topMisses = computed(() =>
     (this.dashboard()?.deviations ?? [])
-      .filter((f) => f.estimateMinutes !== null && f.estimateMinutes > 0)
+      .filter(
+        (f) =>
+          f.estimateMinutes !== null &&
+          f.estimateMinutes > 0 &&
+          f.spentMinutes > f.estimateMinutes,
+      )
       .sort(
         (a, b) =>
           Math.abs(b.gapPercent ?? 0) - Math.abs(a.gapPercent ?? 0) ||

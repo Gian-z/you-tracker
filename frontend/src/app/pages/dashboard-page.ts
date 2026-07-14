@@ -252,7 +252,7 @@ const TOP_TICKET_COUNT = 5;
             @if (dayTarget.presenceMinutes() !== null) {
               Präsenz (Ist) <span class="num">{{ clock(dayTarget.presenceMinutes()!) }}</span>
               @if (dayTarget.presenceRunning()) {
-                <span class="muted">(läuft)</span>
+                <span class="muted" style="margin-left:0.25rem">(läuft)</span>
               }
               · Soll <span class="num">{{ clock(dayTarget.sollToday()) }}</span> · Saldo
               <span
